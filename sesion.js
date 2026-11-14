@@ -176,7 +176,7 @@ async function arranqueSistema(){
   if (!r || !r.ok) {
     if (r && r.codigo === "SESION") return true;   // ya pidió entrar otra vez
     pantalla({ ico: "🧾", html: "<p>" + esc((r && r.msg) || "El sistema no respondió.") + "</p>",
-      btns: '<button type="button" class="btn" onclick="irSistema(this)">🏠 Volver al sistema</button>' });
+      btns: '<button type="button" class="btn" onclick="irSistema(this)">🏠 Volver al inicio</button>' });
     return true;
   }
   const cambia = !S.eq || Number(S.eq.caja) !== Number(r.caja);
@@ -464,12 +464,15 @@ async function irSistema(btn){
 //  2) si no, y el sistema abrió esta caja, la caja se cierra y el navegador vuelve solo a la pestaña del sistema;
 //  3) si la caja no la abrió el sistema (se abrió directo), el sistema se abre aquí mismo con un pase (sin pedir login).
 async function irSistemaAqui(btn){
-  if (ventaAMedias()) { aviso({ icono: "🧾", titulo: "Hay una venta a medias", html: "Termina la venta (o vacíala con 🗑️) antes de ir al sistema." }); return; }
-  btnOcupado(btn, "Subiendo…");
-  try { await sincronizar(true); } catch (e) {}
-  const n = (S.ventas || []).filter(v => v.estado === "por_subir").length;
-  btnLibre(btn);
-  if (n && !await confirmar({ icono: "📤", titulo: n === 1 ? "Falta subir 1 venta" : "Faltan subir " + n + " ventas", ok: "Ir al sistema igual", colorOk: "naranja",
+  if (ventaAMedias()) { aviso({ icono: "🧾", titulo: "Hay una venta a medias", html: "Termina la venta (o vacíala con 🗑️) antes de volver al inicio." }); return; }
+  let n = (S.ventas || []).filter(v => v.estado === "por_subir").length;
+  if (n && S.online !== false && navigator.onLine !== false) {   // 5.0k: solo si hay algo por subir (sin actualizar datos: eso es lo que tardaba)
+    btnOcupado(btn, "Subiendo…");
+    try { await sincronizar(false); } catch (e) {}
+    n = (S.ventas || []).filter(v => v.estado === "por_subir").length;
+    btnLibre(btn);
+  }
+  if (n && !await confirmar({ icono: "📤", titulo: n === 1 ? "Falta subir 1 venta" : "Faltan subir " + n + " ventas", ok: "Volver al inicio igual", colorOk: "naranja",
       html: "Todavía no suben al sistema. Quedan guardadas en este equipo y se suben solas la próxima vez que abras la caja con internet." })) return;
   let op = null;
   try { op = window.opener && !window.opener.closed ? window.opener : null; } catch (e) { op = null; }

@@ -897,3 +897,4 @@ body:not(.v-vender) #btnOrdenes{display:none;}
 .pgu-tile .t1{font-size:17px;font-weight:800;}
 .pgu-tile small{font-size:12.5px;}
 .pgu-ctas{margin-top:2px;}
+@media (max-width:520px){ #btnSistema .mv-lbl{display:none;} }   /* 5.0k: en el teléfono, solo la casita */

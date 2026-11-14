@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#eef1f5">
 <meta name="cm-caja-web" content="ControlMaster · Caja">
-<meta name="cm-ver" content="5.0e">
+<meta name="cm-ver" content="5.0f">
 <title>Caja · ControlMaster</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="icono-180.png">
-<link rel="stylesheet" href="estilos.css?v=5.0e">
+<link rel="stylesheet" href="estilos.css?v=5.0f">
 </head>
 <body class="light entrando">
 
@@ -29,6 +29,7 @@
   <button type="button" class="btn-tema btn-vender-top oculto" id="btnIrVender" onclick="irA('vender')" title="Volver a la factura">🛒 <span class="mv-lbl">Volver a vender</span></button>
   <button type="button" class="btn-tema btn-ordenes oculto" id="btnOrdenes" onclick="abrirOrdenes()" title="Órdenes por cobrar y facturas en espera">📋 <span class="mv-lbl">Órdenes</span><span class="ord-cnt" id="contOrdenes"></span></button>
   <button type="button" class="btn-tema btn-estado" id="pillEstado" onclick="irA('ventas')" title="Ventas de este equipo"><span class="dot"></span><span id="pillTxt">Revisando…</span><span id="pillCorto"></span></button>
+  <button type="button" class="btn-tema" id="btnTema" title="Cambiar tema" onclick="cambiarTema()">🌙</button>
   <button type="button" class="btn-tema btn-menu-vta" id="btnMenuVta" onclick="abrirMenuVta()" title="Menú de la caja">☰ <span class="mv-lbl">Menú</span></button>
 </div>
 
@@ -40,7 +41,6 @@
   <button type="button" class="menu-vta-item" onclick="menuVtaAccion('facturas')"><span class="mv-ico">🔎</span><span><span class="mv-tit">Facturas anteriores</span><span class="mv-sub">Buscar una venta del sistema y reimprimirla (con internet)</span></span></button>
   <button type="button" class="menu-vta-item" onclick="menuVtaAccion('servicio')"><span class="mv-ico">🛠️</span><span><span class="mv-tit">Nuevo servicio</span><span class="mv-sub">Un trabajo que no está en la lista (con internet y la clave maestra)</span></span></button>
   <button type="button" class="menu-vta-item" onclick="menuVtaAccion('actualizar')"><span class="mv-ico">🔄</span><span><span class="mv-tit">Actualizar datos</span><span class="mv-sub">Productos, precios, clientes y tasas del sistema (con internet)</span></span></button>
-  <button type="button" class="menu-vta-item" id="menuTema" onclick="menuVtaAccion('tema')"><span class="mv-ico" id="menuTemaIco">☀️</span><span><span class="mv-tit" id="menuTemaTit">Tema claro</span><span class="mv-sub">Cambia los colores de la pantalla</span></span></button>
   <button type="button" class="menu-vta-item" data-v="ajustes" onclick="menuVtaAccion('ajustes')"><span class="mv-ico">⚙️</span><span><span class="mv-tit">Ajustes del equipo</span><span class="mv-sub">Ticket, tasas, sesión y datos de este equipo</span></span></button>
   <button type="button" class="menu-vta-item" id="menuBloq" onclick="menuVtaAccion('bloquear')"><span class="mv-ico">🔐</span><span><span class="mv-tit">Bloquear la caja</span><span class="mv-sub">Si te vas a parar: se abre con tu contraseña</span></span></button>
   <button type="button" class="menu-vta-item" id="menuSacar" onclick="menuVtaAccion('sacar')"><span class="mv-ico">💸</span><span><span class="mv-tit">Sacar efectivo</span><span class="mv-sub">Un gasto pagado con el efectivo de la caja (lo autoriza un administrador)</span></span></button>
@@ -323,14 +323,14 @@
 <div class="bloqueo oculto" id="bloqueo"><div class="bq-box" id="bloqCuerpo"></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=5.0e"></script>
-<script src="api.js?v=5.0e"></script>
-<script src="sesion.js?v=5.0e"></script>
-<script src="numeros.js?v=5.0e"></script>
-<script src="ordenes.js?v=5.0e"></script>
-<script src="cajero.js?v=5.0e"></script>
-<script src="gaveta.js?v=5.0e"></script>
-<script src="tanda2.js?v=5.0e"></script>
-<script src="tasas.js?v=5.0e"></script>
+<script src="app.js?v=5.0f"></script>
+<script src="api.js?v=5.0f"></script>
+<script src="sesion.js?v=5.0f"></script>
+<script src="numeros.js?v=5.0f"></script>
+<script src="ordenes.js?v=5.0f"></script>
+<script src="cajero.js?v=5.0f"></script>
+<script src="gaveta.js?v=5.0f"></script>
+<script src="tanda2.js?v=5.0f"></script>
+<script src="tasas.js?v=5.0f"></script>
 </body>
 </html>

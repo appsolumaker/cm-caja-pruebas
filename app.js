@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0e · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0f · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -420,7 +420,6 @@ function menuVtaAccion(a){
   if (a === "bloquear") { bloquear(); return; }
   if (a === "sacar") { gvGasto(); return; }   // 3.3 (gaveta.js)
   if (a === "facturas") { abrirFacturasAnt(); return; }   // 3.9 (tanda2.js)
-  if (a === "tema") { cambiarTema(); return; }               // 5.0c: el cambio de tema vive en el menú
   if (a === "servicio") { nuevoServicio(); return; }       // 3.9 (tanda2.js)
   irA(a);
 }
@@ -3200,9 +3199,7 @@ async function guardarPref(){
 }
 function aplicarTema(){
   document.body.classList.toggle("light", !!S.pref.claro);
-  const ti = $("menuTemaIco"), tt = $("menuTemaTit");   // 5.0c: en el menú dice el tema al que se cambia
-  if (ti) ti.textContent = S.pref.claro ? "🌙" : "☀️";
-  if (tt) tt.textContent = S.pref.claro ? "Tema oscuro" : "Tema claro";
+  const b = $("btnTema"); if (b) b.textContent = S.pref.claro ? "🌙" : "☀️";   // 5.0f: vuelve a la barra, antes del Menú (el Menú siempre de último)
   const c = $("chkClaro"); if (c) c.checked = !!S.pref.claro;
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = S.pref.claro ? "#eef1f5" : "#07090d";
 }

@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0d · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0e · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -1688,8 +1688,9 @@ function pguDesc(m){
   return g[1] + " " + (pguNorm(e) === pguNorm(g[2]) || pguNorm(e).indexOf(pguNorm(g[2])) === 0 ? e : g[2] + " · " + e);
 }
 function metodoDe(nombre){ return metodos().find(x => x.metodo === nombre) || null; }
-// 5.0d: los métodos van en cuadritos (el tipo arriba, el banco abajo en pequeño), 2 por fila. Los que no tienen cuenta
-// asociada no se muestran (no se pueden usar).
+// 5.0d: los métodos van en cuadritos, 2 por fila. Los que no tienen cuenta asociada no se muestran (no se pueden usar).
+//  · Tipo con UNA cuenta: un cuadrito con el tipo arriba y la cuenta abajo en pequeño («📱 Pago Móvil / Banco Mercantil»).
+//  · Tipo con VARIAS cuentas: el tipo como título pequeño y un cuadrito por cuenta, con el nombre de la cuenta en grande.
 function pgFilasMetodos(fn, usados, conCredito, soloMon){
   const cols = [];
   [["BS", "bs", "💙 En bolívares"], ["USD", "usd", "💚 En dólares"]].forEach(([mon, cls, tit]) => {
@@ -1698,11 +1699,22 @@ function pgFilasMetodos(fn, usados, conCredito, soloMon){
     const ms = metodos().map((m, i) => ({ m, i })).filter(o => o.m.tipo === mon && o.m.conCuenta)
       .sort((a, b) => (orden.indexOf(pguTipoDe(a.m)) - orden.indexOf(pguTipoDe(b.m))) || (a.i - b.i));
     if (!ms.length) return;
+    const cuantos = {};
+    ms.forEach(o => { const t = pguTipoDe(o.m); cuantos[t] = (cuantos[t] || 0) + 1; });
+    let tipoAnt = "", grupoAnt = false;
     cols.push('<div class="pgu-col">' + (soloMon ? "" : '<div class="pgu-mon-tit ' + cls + '">' + tit + "</div>") + '<div class="pgu-tiles">' + ms.map(o => {
-      const g = pguGrupo(o.m), et = pguEtiqueta(o.m), us = usados.indexOf(o.m.metodo) >= 0;
-      const solo = g[0] === "otro" || pguNorm(et) === pguNorm(g[2]) || pguNorm(et).indexOf(pguNorm(g[2])) === 0;   // el nombre ya dice el tipo: una sola línea
-      return '<button type="button" class="pgu-chip pgu-tile ' + cls + (us ? " usado" : "") + '" title="' + esc(o.m.metodo) + '" onclick="' + fn + "(" + o.i + ')">' +
-        '<span class="t1">' + (g[0] === "otro" ? "" : g[1] + " ") + esc(solo ? et : g[2]) + "</span>" + (solo ? "" : "<small>" + esc(et) + "</small>") + "</button>";
+      const g = pguGrupo(o.m), t = g[0], et = pguEtiqueta(o.m), us = usados.indexOf(o.m.metodo) >= 0, varias = cuantos[t] > 1;
+      const btn = (a, b) => '<button type="button" class="pgu-chip pgu-tile ' + cls + (us ? " usado" : "") + '" title="' + esc(o.m.metodo) + '" onclick="' + fn + "(" + o.i + ')">' +
+        '<span class="t1">' + a + "</span>" + (b ? "<small>" + b + "</small>" : "") + "</button>";
+      if (varias) {   // varias cuentas del mismo tipo: título del tipo y la cuenta en grande
+        const titulo = t !== tipoAnt ? (tipoAnt ? '<div class="pgu-corte"></div>' : "") + '<div class="pgu-tipo-tit">' + g[1] + " " + esc(g[2]) + "</div>" : "";
+        tipoAnt = t; grupoAnt = true;
+        return titulo + btn(esc(et), "");
+      }
+      const corte = grupoAnt ? '<div class="pgu-corte"></div>' : "";   // después de un grupo, el siguiente tipo empieza en su propia fila
+      tipoAnt = t; grupoAnt = false;
+      const solo = t === "otro" || pguNorm(et) === pguNorm(g[2]) || pguNorm(et).indexOf(pguNorm(g[2])) === 0;   // el nombre ya dice el tipo: una sola línea
+      return corte + btn((t === "otro" ? "" : g[1] + " ") + esc(solo ? et : g[2]), solo ? "" : esc(et));
     }).join("") + "</div></div>");
   });
   if (!cols.length) return '<div class="pw-aviso">No hay métodos de pago ' + (soloMon === "BS" ? "en bolívares " : soloMon === "USD" ? "en dólares " : "") + "con una cuenta asociada. Asígnales su cuenta en Configuración del sistema.</div>";
@@ -2050,7 +2062,8 @@ function pgWzPintar(){
   // ③ ¿Cuánto?
   if (k === "3") {
     const mix = P.lineas.some(l => l.tipo === "BS") && P.lineas.some(l => l.tipo === "USD");
-    $("pgP3").innerHTML = '<div class="pw-preg">' + (P.tipo === "credito" ? "¿Cuánto paga ahora? Lo demás queda a deber" : mix ? "¿Cuánto paga en " + (P.lineas[0].tipo === "USD" ? "$" : "Bs") + "?" : "¿Cuánto paga?") + "</div>";   // 5.0d: una sola línea
+    const monP3 = mix ? P.lineas[0].tipo : P.como;   // 5.0e: la franja con el color de la moneda
+    $("pgP3").innerHTML = '<div class="pw-preg' + (monP3 === "BS" ? " bs" : monP3 === "USD" ? " usd" : "") + '">' + (P.tipo === "credito" ? "¿Cuánto paga ahora? Lo demás queda a deber" : mix ? "¿Cuánto paga en " + (P.lineas[0].tipo === "USD" ? "$" : "Bs") + "?" : "¿Cuánto paga?") + "</div>";   // 5.0d: una sola línea
     $("pgOtrosBox").innerHTML = P.lineas.length >= 3 ? "" : (P.verOtros
       ? '<div class="pw-preg pw-sub">Toca el otro método</div>' + pgFilasMetodos("pgWzOtro", P.lineas.map(l => l.metodo), false, P.como === "MIX" ? null : P.como) + '<div style="text-align:center;"><button type="button" class="lnk" onclick="P.verOtros=false;pgWzPintar()">Cancelar</button></div>'
       : '<div style="text-align:center;margin:6px 0;"><button type="button" class="pgu-mas" onclick="P.verOtros=true;pgWzPintar()">＋ Otro método</button></div>');

@@ -892,3 +892,6 @@ body:not(.v-vender) #btnOrdenes{display:none;}
 .pgu-chip.pgu-tile.usado{opacity:1;background:var(--green-dim);border:2px solid var(--green);}
 .pgu-cols{gap:4px 12px;}
 @media (max-width:520px){ .pgu-tiles{grid-template-columns:minmax(0,1fr);} }
+.pgu-tipo-tit{grid-column:1/-1;font-size:12px;font-weight:800;color:var(--text-dim);margin:4px 0 -2px;}
+.pgu-tipo-tit:first-child{margin-top:0;}
+.pgu-corte{grid-column:1/-1;height:0;margin:2px 0;}

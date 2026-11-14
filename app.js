@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0c · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0d · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -1575,11 +1575,11 @@ async function abrirPago(){
     $("pgTotalBs").innerHTML = tx.seg + (T.dlv > 0 ? " · incluye " + esc(dlvTxt().toLowerCase()) + " $" + fmt(T.dlv) : "");
   }
   $("pgPaso1").classList.toggle("oculto", !aparte); $("pgPaso1M").textContent = "$" + fmt(T.prod);
-  $("pgHint").innerHTML = m === "div"
-    ? "💵 <b>Venta en Dólares</b>: los $ van a la par · los Bs a tasa Divisas <b>Bs " + fmt(tDiv()) + "</b>."
-    : "Venta en <b>$ BCV</b>: los Bs van a tasa BCV <b>Bs " + fmt(tBcv()) + "</b> · los $ a la tasa que elijas en cada línea" +
-      (m === "off" && !tDivOff() ? " (este negocio no tiene tasa Divisas: los $ valen a la BCV)" : "") + "." +
-    (F.fechaAnt ? "<br>📅 <b>Venta del " + fechaCorta(F.fechaAnt.fecha) + "</b>, con las tasas de ese día." : "");
+  // 5.0d: una línea corta con las tasas (antes: una explicación larga)
+  const tdh = m === "off" ? tDivOff() : tDiv();
+  $("pgHint").innerHTML = (m === "div" ? "💵 Venta en dólares · Tasa Divisas <b>Bs " + fmt(tDiv()) + "</b>"
+      : "Tasa BCV <b>Bs " + fmt(tBcv()) + "</b>" + (tdh > 0 ? " · Divisas <b>Bs " + fmt(tdh) + "</b>" : "")) +
+    (F.fechaAnt ? " · 📅 Venta del <b>" + fechaCorta(F.fechaAnt.fecha) + "</b>" : "");
   $("pgRef").value = ""; $("pgObs").value = "";
   $("pgForm").classList.remove("oculto"); $("pgOk").classList.add("oculto");
   $("pgPie").classList.remove("oculto"); $("pgPieOk").classList.add("oculto"); $("pgX").classList.remove("oculto"); $("pgTit").textContent = "💳 Pago del cliente";
@@ -1688,22 +1688,24 @@ function pguDesc(m){
   return g[1] + " " + (pguNorm(e) === pguNorm(g[2]) || pguNorm(e).indexOf(pguNorm(g[2])) === 0 ? e : g[2] + " · " + e);
 }
 function metodoDe(nombre){ return metodos().find(x => x.metodo === nombre) || null; }
+// 5.0d: los métodos van en cuadritos (el tipo arriba, el banco abajo en pequeño), 2 por fila. Los que no tienen cuenta
+// asociada no se muestran (no se pueden usar).
 function pgFilasMetodos(fn, usados, conCredito, soloMon){
   const cols = [];
   [["BS", "bs", "💙 En bolívares"], ["USD", "usd", "💚 En dólares"]].forEach(([mon, cls, tit]) => {
     if (soloMon && soloMon !== mon) return;   // 3.5: el paso ② muestra solo la moneda elegida
-    const ms = metodos().map((m, i) => ({ m, i })).filter(o => o.m.tipo === mon);
+    const orden = PGU_GRUPOS[mon].map(g => g[0]);
+    const ms = metodos().map((m, i) => ({ m, i })).filter(o => o.m.tipo === mon && o.m.conCuenta)
+      .sort((a, b) => (orden.indexOf(pguTipoDe(a.m)) - orden.indexOf(pguTipoDe(b.m))) || (a.i - b.i));
     if (!ms.length) return;
-    let h = '<div class="pgu-col"><div class="pgu-mon-tit ' + cls + '">' + tit + "</div>";
-    PGU_GRUPOS[mon].forEach(g => {
-      const del = ms.filter(o => pguTipoDe(o.m) === g[0]); if (!del.length) return;
-      h += '<div class="pgu-fila"><span class="pgu-grp">' + g[1] + " " + g[2] + '</span><div class="pgu-chips">' + del.map(o => {
-        const ok = o.m.conCuenta, us = usados.indexOf(o.m.metodo) >= 0;
-        return '<button type="button" class="pgu-chip ' + cls + (us ? " usado" : "") + '"' + (ok ? "" : " disabled") + ' title="' + esc(o.m.metodo + (ok ? "" : " — sin cuenta asociada")) + '" onclick="' + fn + "(" + o.i + ')">' + esc(pguEtiqueta(o.m)) + (ok ? "" : " (sin cuenta)") + "</button>";
-      }).join("") + "</div></div>";
-    });
-    cols.push(h + "</div>");
+    cols.push('<div class="pgu-col">' + (soloMon ? "" : '<div class="pgu-mon-tit ' + cls + '">' + tit + "</div>") + '<div class="pgu-tiles">' + ms.map(o => {
+      const g = pguGrupo(o.m), et = pguEtiqueta(o.m), us = usados.indexOf(o.m.metodo) >= 0;
+      const solo = g[0] === "otro" || pguNorm(et) === pguNorm(g[2]) || pguNorm(et).indexOf(pguNorm(g[2])) === 0;   // el nombre ya dice el tipo: una sola línea
+      return '<button type="button" class="pgu-chip pgu-tile ' + cls + (us ? " usado" : "") + '" title="' + esc(o.m.metodo) + '" onclick="' + fn + "(" + o.i + ')">' +
+        '<span class="t1">' + (g[0] === "otro" ? "" : g[1] + " ") + esc(solo ? et : g[2]) + "</span>" + (solo ? "" : "<small>" + esc(et) + "</small>") + "</button>";
+    }).join("") + "</div></div>");
   });
+  if (!cols.length) return '<div class="pw-aviso">No hay métodos de pago ' + (soloMon === "BS" ? "en bolívares " : soloMon === "USD" ? "en dólares " : "") + "con una cuenta asociada. Asígnales su cuenta en Configuración del sistema.</div>";
   let html = '<div class="pgu-cols' + (cols.length < 2 ? " una" : "") + '">' + cols.join("") + "</div>";
   if (conCredito && metodoCredito() && !(P && P.cs.on)) html += '<div class="pgu-mon-tit otros">Otros</div><div class="pgu-fila linea1"><span class="pgu-grp">📝 A crédito</span><div class="pgu-chips"><button type="button" class="pgu-chip cred' + (P.cred.on ? " on" : "") + '" onclick="pgCredito()">' + (P.cred.on ? "✓ Crédito" : "Crédito") + "</button></div></div>";
   return html;
@@ -1763,13 +1765,7 @@ function pgActualizar(){
   P.lineas.forEach(l => {
     const el = $("pgE_" + l.id); if (!el) return;
     if (!(Number(l.monto) > 0)) { el.innerHTML = ""; return; }
-    let t = "cubre <b>" + txtU(pgCubre(l)) + "</b>";
-    if (m !== "div" && l.tipo === "BS") t += " (Bs " + fmt(l.monto) + " ÷ " + fmt(tBcv()) + ")";
-    if (m === "div" && l.tipo === "BS") t += " (Bs " + fmt(l.monto) + " ÷ " + fmt(tDiv()) + ")";
-    if (l.tipo === "USD" && m !== "div") t += " (a Bs " + fmt(pgTasaLinea(l)) + ")";
-    if (m === "bcv") t += " · vale <b>" + txtL(pgVale(l)) + "</b>";
-    else if (m === "off" && l.tipo === "USD") t += " · vale <b>" + txtL(pgVale(l)) + "</b>" + (tDivOff() > 0 ? " (a Divisas Bs " + fmt(tDivOff()) + ")" : "");
-    el.innerHTML = t;
+    el.innerHTML = "= <b>" + txtU(pgCubre(l)) + "</b> de la venta";   // 5.0d: corto (antes con la cuenta y lo que vale en divisas)
   });
   const ec = $("pgE_cred");
   if (ec) { const c = pgCredValor(), q = P.cred.cashea ? "a nombre de Cashea: " : "queda a deber "; ec.innerHTML = c > 0 ? (m === "bcv" ? q + "<b>" + txtU(c) + "</b>, fijo en BCV · hoy vale <b>$" + fmt(r2(c * factorCxC())) + " div</b>" : q + "<b>" + txtU(c) + "</b>") : ""; }
@@ -1786,10 +1782,10 @@ function pgActualizar(){
       if (Math.abs(st.queda) <= TOL) h = '<div class="bal ok">✅ Pago exacto con vuelto</div>';
       else if (st.queda > 0) h = '<div class="bal sobra">Faltan ' + txtU(st.queda) + " por devolver" + bs(st.queda) + "</div>";
       else h = '<div class="bal falta">⚠️ El vuelto pasa de lo que sobra por ' + txtU(-st.queda) + "</div>";
-    } else h = '<div class="bal ok">' + (P.dlv.on ? "✅ Productos pagados: " + txtU(P.total) : "✅ Pago exacto: cubierto " + txtU(P.total) + " de " + txtU(P.total)) + "</div>";
+    } else h = '<div class="bal ok">' + (P.dlv.on ? "✅ Productos pagados" : "✅ Pago completo") + "</div>";   // 5.0d
     if (st.pend <= TOL && Math.abs(st.dif) > 0.01 && !(st.pend < -TOL && !P.vt.on)) {
       const favor = st.dif > 0;
-      h += '<div class="dif ' + (favor ? "afavor" : "encontra") + '">💹 Diferencial ' + (favor ? "a favor" : "en contra") + ": <b>" + txtL(Math.abs(st.dif)) + "</b>. Lo recibido vale " + txtL(r2(st.vale + st.credVale - st.vtVale)) + " y la venta vale " + txtL(st.valorVenta) + "." + pgMotivoDif() + "</div>";
+      h += '<div class="dif ' + (favor ? "afavor" : "encontra") + '">💹 Diferencial ' + (favor ? "a favor" : "en contra") + ": <b>" + txtL(Math.abs(st.dif)) + "</b>." + pgMotivoDif() + "</div>";   // 5.0d: sin «lo recibido vale… la venta vale…»
     }
   }
   $("pgBal").innerHTML = h;
@@ -1807,7 +1803,7 @@ function pgActualizar(){
     todo.innerHTML = uno && dos ? '<div class="pg-todo ok">✅ Todo pagado. Toca <b>Registrar</b>.</div>'
       : '<div class="pg-todo falta">Falta: ' + [uno ? "" : "① los productos", dos ? "" : "② el " + dlvTxt(P.dlv.tipo).toLowerCase()].filter(Boolean).join(" y ") + "</div>";
   }
-  $("pgLineasTit").classList.toggle("oculto", !(P.lineas.length || P.cred.on));
+  $("pgLineasTit").classList.add("oculto");   // 5.0d: sin el título «Pagos de esta venta»
   pgExtrasTxt();
 }
 function pgMotivoDif(){
@@ -2022,7 +2018,7 @@ function pgWzPintar(){
   // ① ¿La venta incluye crédito?
   if (k === "1") {
     const div = P.modo === "div";
-    let h = '<div class="pw-preg">¿Cómo pagará el cliente?</div><div class="pw-ops">' +
+    let h = '<div class="pw-preg">¿Cómo pagará el cliente?</div><div class="pw-ops">' +   // 5.0d: la franja la pone .pw-preg (estilos.css)
       pgWzCard(P.tipo === "contado", "pgWzTipo('contado')", "✅", "De contado", "Paga todo ahora") +
       (metodoCredito() ? pgWzCard(P.tipo === "credito", "pgWzTipo('credito')", "📝", "Con crédito", "Total o parcial") : "") +
       (pgCsPuede() && !P.dlv.on ? pgWzCard(P.tipo === "cashea", "pgWzTipo('cashea')", '<span class="cs-marca">Cashea</span>', "Con Cashea", div ? "Va a precio BCV: quita 💵 Venta en Dólares para usarlo" : "Paga un inicial y Cashea el resto", div) : "") + "</div>";
@@ -2048,17 +2044,16 @@ function pgWzPintar(){
   // ③ El método (3.6: pantalla aparte, solo de la moneda elegida)
   if (k === "M") {
     const mon = P.como === "BS" ? "Bolívares" : P.como === "USD" ? "Dólares" : "";
-    $("pgPM").innerHTML = '<div class="pw-preg">' + (P.como === "MIX" ? "Toca un método en <b>Bs</b> y uno en <b>$</b>" : "¿Por dónde paga en " + mon + "?") + "</div>" +
+    $("pgPM").innerHTML = '<div class="pw-preg' + (P.como === "BS" ? " bs" : P.como === "USD" ? " usd" : "") + '">' + (P.como === "MIX" ? "Toca un método en Bs y uno en $" : "¿Por dónde paga en " + mon.toLowerCase() + "?") + "</div>" +
       pgFilasMetodos("pgWzMetodo", P.lineas.map(l => l.metodo), false, P.como === "MIX" ? null : P.como);
   }
   // ③ ¿Cuánto?
   if (k === "3") {
     const mix = P.lineas.some(l => l.tipo === "BS") && P.lineas.some(l => l.tipo === "USD");
-    $("pgP3").innerHTML = '<div class="pw-preg">' + (P.tipo === "credito" ? "¿Cuánto paga ahora?" : mix ? "¿Cuánto paga en " + (P.lineas[0].tipo === "USD" ? "$" : "Bs") + "? Lo demás se calcula solo." : "¿Cuánto paga?") + "</div>" +
-      (P.tipo === "credito" ? '<div class="cie-ayuda" style="text-align:center;">Lo que no pague ahora queda a deber.</div>' : "");
+    $("pgP3").innerHTML = '<div class="pw-preg">' + (P.tipo === "credito" ? "¿Cuánto paga ahora? Lo demás queda a deber" : mix ? "¿Cuánto paga en " + (P.lineas[0].tipo === "USD" ? "$" : "Bs") + "?" : "¿Cuánto paga?") + "</div>";   // 5.0d: una sola línea
     $("pgOtrosBox").innerHTML = P.lineas.length >= 3 ? "" : (P.verOtros
       ? '<div class="pw-preg pw-sub">Toca el otro método</div>' + pgFilasMetodos("pgWzOtro", P.lineas.map(l => l.metodo), false, P.como === "MIX" ? null : P.como) + '<div style="text-align:center;"><button type="button" class="lnk" onclick="P.verOtros=false;pgWzPintar()">Cancelar</button></div>'
-      : '<div style="text-align:center;margin:6px 0;"><button type="button" class="pgu-mas" onclick="P.verOtros=true;pgWzPintar()">＋ Paga con otro método también</button></div>');
+      : '<div style="text-align:center;margin:6px 0;"><button type="button" class="pgu-mas" onclick="P.verOtros=true;pgWzPintar()">＋ Otro método</button></div>');
   }
   // El vuelto (3.6: pantalla aparte)
   if (k === "V") {

@@ -877,3 +877,18 @@ body:not(.v-vender) #btnOrdenes{display:none;}
 .bn-barra{height:8px;border-radius:6px;background:var(--bg3, rgba(255,255,255,0.08));overflow:hidden;position:relative;}
 .bn-barra i{position:absolute;top:0;bottom:0;left:-40%;width:40%;border-radius:6px;background:var(--green, #00e87a);animation:bnMover 1.1s ease-in-out infinite;}
 @keyframes bnMover{0%{left:-40%;}100%{left:100%;}}
+
+/* 5.0d · pago: cada pregunta en su franja de color (azul = bolívares, verde = dólares) y los métodos en cuadritos */
+.pw-preg{font-size:16px;font-weight:800;padding:10px 14px;margin:4px 0 12px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);}
+.pw-preg.pw-sub{font-size:14px;padding:8px 12px;margin:12px 0 8px;}
+.pw-preg.bs{background:var(--blue-dim);border-color:rgba(52,152,219,0.35);color:var(--blue);}
+.pw-preg.usd{background:var(--green-dim);border-color:var(--border-g);color:var(--green);}
+.pgu-hint{text-align:center;margin:0 0 8px;}
+.pgu-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.pgu-cols:not(.una) .pgu-tiles{grid-template-columns:minmax(0,1fr);}
+.pgu-chip.pgu-tile,.pw-s .pgu-chip.pgu-tile{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;text-align:left;white-space:normal;min-height:52px;padding:8px 12px;font-size:14px;line-height:1.25;}
+.pgu-tile .t1{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pgu-tile small{display:block;max-width:100%;font-size:12px;font-weight:600;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pgu-chip.pgu-tile.usado{opacity:1;background:var(--green-dim);border:2px solid var(--green);}
+.pgu-cols{gap:4px 12px;}
+@media (max-width:520px){ .pgu-tiles{grid-template-columns:minmax(0,1fr);} }

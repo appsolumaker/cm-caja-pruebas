@@ -37,7 +37,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "4.9 · 11-11-2026";
+const APP_VER = "4.9 · 11-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -157,6 +157,8 @@ window.addEventListener("hashchange", () => { if (/[#&]pase=/.test(location.hash
 async function arrancar(){
   try { window.name = "cm_caja"; } catch (e) {}   // el sistema la encuentra por este nombre y no abre otra
   $("verApp").textContent = "Caja · versión " + APP_VER;
+  // SOLO-PRUEBAS: marca para saber que esta caja viene de cm-caja-pruebas. NO va a producción (cm-caja).
+  try { const b = document.createElement("div"); b.textContent = "🧪 CAJA DE PRUEBAS"; b.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:99999;background:#f59e0b;color:#111;font:700 11px system-ui,sans-serif;padding:3px 8px;border-radius:6px;pointer-events:none;opacity:.92"; document.body.appendChild(b); } catch (e) {}
   document.body.classList.add("entrando");
   // 2.7.1: la página (index.html) y sus archivos tienen que ser de la misma versión. Justo después de subir
   // a GitHub, el navegador puede traer uno viejo un rato: se recarga una vez y, si sigue mal, lo dice.

@@ -196,6 +196,10 @@ async function turnoDelSistema(r){
   const t = r.turno, yo = usuarioSes().toLowerCase();
   const loc = S.turno;
   if (loc && loc.invitado && (!t || t.id !== loc.id)) { S.turno = null; await kvSet("turno", null); }   // el turno donde vendía como administrador ya se cerró
+  else if (loc && (!t || t.id !== loc.id) && !(S.ventas || []).some(v => v.turno === loc.id && v.estado === "por_subir")) {   // 5.0l: se cerró en otro equipo
+    S.turno = null; await kvSet("turno", null);
+    aviso({ icono: "🔒", titulo: "Tu turno ya se cerró", html: "El turno de <b>" + esc(loc.cajeroNombre) + "</b> que estaba abierto en este equipo se cerró desde otro equipo (por ejemplo, el administrador). Para vender, abre un turno nuevo." });
+  }
   if (!t) return;
   const mio = String(t.cajeroId || "").toLowerCase() === yo && yo;
   if (mio && (!S.turno || S.turno.id === t.id) && t.equipo !== r.equipo) {   // el mismo cajero: sigue su turno en este equipo

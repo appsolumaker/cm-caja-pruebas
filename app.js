@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0k · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0l · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -349,10 +349,6 @@ function irA(v){
   if (!S.datos) return;
   if (S.cierreAdmin && v !== "cierre") { cancelarCierreAdmin(); return; }   // cajero.js: el Administrador solo vino a cerrar el turno
   if (v === "vender" && !S.turno) { mostrarVista("turno"); pintarTurno(); return; }   // primero, abrir turno
-  if (v === "cierre" && S.turno && (S.turno.invitado || S.turno.adoptado)) {   // 5.0i · Tanda 3B-1 (provisional hasta la 3B-2)
-    aviso({ icono: "🔒", titulo: "Cierre desde el sistema", html: S.turno.invitado ? "Este es el turno de <b>" + esc(S.turno.de || "otro cajero") + "</b>. Cerrarlo desde aquí llega en la próxima entrega (Tanda 3B-2)." : "Este turno empezó en otro equipo: su cierre se calcula con lo que está en el sistema. Llega en la próxima entrega (Tanda 3B-2)." });
-    return;
-  }
   mostrarVista(v);
   if (v === "ventas") pintarVentas();
   if (v === "ajustes") pintarAjustes();
@@ -2696,7 +2692,7 @@ function imprimirHTML(html){
 // ══ CIERRE DE TURNO ══
 function esEfectivo(p){ const m = metodoDe(p.metodo) || { metodo: p.metodo, tipo: p.tipo }; return pguTipoDe(m) === "efectivo"; }
 function resumenTurno(t){
-  const todas = S.ventas.filter(v => v.turno === t.id && v.estado !== "invalida");
+  const todas = S.ventas.filter(v => v.turno === t.id && v.estado !== "invalida").concat(CIE.otrasTid === t.id ? (CIE.otras || []) : []);   // 5.0l · 3B-2: + las de otros equipos
   const vs = todas.filter(v => !v.fechaAnt), otras = todas.filter(v => v.fechaAnt);   // Tanda 1: las ventas de otro día no cuentan en la gaveta de hoy
   const met = {};
   let totalUsd = 0, totalBs = 0, credito = 0, desc = 0, sinSubir = 0, cashea = 0, casheaBs = 0, saf = 0;
@@ -2728,6 +2724,7 @@ function resumenTurno(t){
     lista: otras.map(v => ({ nro: v.numeroFactura ? "#" + v.numeroFactura : (v.numeroTicket ? "#" + v.numeroTicket : "PROV " + v.numero), fecha: v.fecha, totalBs: r2(Number(v.totalBs) || 0) })) };
   sinSubir += otras.filter(v => v.estado !== "subida").length;
   const gv = gvSuma(t.id);   // 3.3 (gaveta.js): gastos, faltantes, sobrantes y redondeos registrados en este turno
+  if (CIE.otrasTid === t.id) (CIE.cjmExtra || []).forEach(m => { if (m.moneda === "BS") gv.bs = r2(gv.bs + m.monto); else gv.usd = r2(gv.usd + m.monto); });   // 5.0l: los registrados en otro equipo
   return { ventas: vs.length, totalUsd: r2(totalUsd), totalBs: r2(totalBs), credito: r2(credito), cashea: r2(cashea), casheaBs: r2(casheaBs), saf: r2(saf), otroDia: otroDia, descuentos: r2(desc), sinSubir,
            metodos, efBsVentas: r2(efBs), efUsdVentas: r2(efUsd),
            gaveta: gvParaCierre(t.id), gavetaBs: gv.bs, gavetaUsd: gv.usd,
@@ -2758,14 +2755,95 @@ function cieQuedaTxt(){
       '<div class="q-sale">📤 <span>Sale de la caja (se le entrega al dueño o al encargado):</span><b>Bs ' + fmt(r2(x.bs - q.bs)) + " · $" + fmt(r2(x.usd - q.usd)) + "</b></div></div>" : "");   // 1c: más claro (lo contado ya está arriba)
 }
 const CIE_PASOS = [["1", "Efectivo Bs"], ["2", "Efectivo $"], ["3", "Revisar"], ["4", "Lo que queda"], ["5", "Cerrar"]];
-function irCierre(){
+async function irCierre(){
   if (!S.turno) return;
   if (F.items.length || P) { aviso({ icono: "🧾", titulo: "Hay una venta a medias", html: "Termina la venta (o vacíala con 🗑️) antes de cerrar el turno." }); return; }
+  if (S.eq && S.eq.auto && !(await cierreDelSistema())) return;   // 5.0l · Tanda 3B-2
   if (CIE.tid !== S.turno.id) Object.assign(CIE, { paso: 1, bs: "", usd: "", obs: "", qBs: "", qUsd: "", hora: "", tid: S.turno.id });
   else if (CIE.paso > 3) CIE.paso = 3;   // 1b: volvió a cerrar (p. ej. registró la venta que faltaba): lo contado se queda y se revisa otra vez
   CIE.sis = null;
   mostrarVista("cierre"); pintarCierre();
   cierreTraerSistema();
+}
+// ══ 5.0l · TANDA 3B-2: el cierre con lo que está en el sistema ══
+//  El turno puede haber vendido en varios equipos (el mismo cajero que siguió en otro, o el administrador). Antes de
+//  cerrar: se sube lo de este equipo y se trae del sistema lo del turno. Si hay facturas con número entregado cuya
+//  venta todavía no sube, NO se cierra: se espera (o, si el equipo se dañó o se perdió, un administrador las marca
+//  como no usadas). El administrador también puede cerrar el turno de un cajero, con un aviso que explica todo.
+//  true = se puede seguir al cierre.
+async function cierreDelSistema(){
+  const t = S.turno;
+  if (!hayInternet()) {
+    aviso({ icono: "📡", titulo: "Para cerrar hace falta internet", html: "El cierre se calcula con lo que está en el sistema: las ventas de este turno en <b>todos</b> los equipos. Conéctate a internet y vuelve a tocar <b>Cerrar turno</b>. Mientras tanto puedes seguir vendiendo." });
+    return false;
+  }
+  if (t.invitado && !t.cierraAdmin && !await confirmar({ icono: "⭐", titulo: "¿Cerrar el turno de " + esc(t.de || "otro cajero") + "?", ok: "Sí, cerrar su turno", colorOk: "naranja",
+      html: '<div class="m-txt" style="text-align:left;line-height:1.55;">Este es el turno de <b>' + esc(t.de || "otro cajero") + "</b> en la <b>Caja " + esc(S.eq.caja) + "</b>. Ciérralo solo si " + esc(t.de || "el cajero") + " no puede (por ejemplo, se fue)." +
+        "<br><br>• Vas a <b>contar el efectivo</b> que hay en esta caja, como en cualquier cierre." +
+        "<br>• El cierre suma <b>todas</b> las ventas del turno, también las que hizo " + esc(t.de || "el cajero") + " en su equipo." +
+        "<br>• Si su equipo tiene ventas sin subir, primero hay que esperar a que suban." +
+        "<br>• Al cerrarlo, su equipo ya <b>no podrá vender</b> en este turno: tendrá que abrir uno nuevo." +
+        "<br>• En el cierre queda anotado que lo cerraste tú.</div>" })) return false;
+  const b = barraProgreso("Revisando las ventas del turno…");
+  try { await sincronizar(false); } catch (e) {}
+  let r = null;
+  try { r = await api("cj_turno", { op: "ventas", id: t.id }, 60000); } catch (e) { r = { ok: false, msg: e.message }; }
+  b.cerrar();
+  if (!r || !r.ok) { aviso({ icono: "❌", titulo: "No se pudo revisar el turno", html: esc((r && r.msg) || "El sistema no respondió.") + "<br><br>Vuelve a tocar <b>Cerrar turno</b>." }); return false; }
+  const mias = {};
+  S.ventas.filter(v => v.turno === t.id).forEach(v => { mias[v.id] = v; });
+  if ((r.pendientes || []).length) return await cierrePendientes(r.pendientes, mias);
+  CIE.otras = (r.ventas || []).filter(v => !mias[v.id]);
+  const ya = {}; (S.movs || []).forEach(m => { ya[m.id] = true; });
+  CIE.cjmExtra = (r.cjm || []).filter(m => !ya[m.id]);
+  CIE.otrasTid = t.id;
+  const x = r.turno || {};
+  if (t.invitado || t.adoptado) {   // el cierre va a nombre del cajero del turno, con su fondo
+    const u = (S.ses && S.ses.usuario) || {};
+    S.turno = Object.assign({}, t, { cajeroId: x.cajeroId || t.cajeroId, cajeroNombre: x.cajeroNombre || t.cajeroNombre, apertura: x.apertura || t.apertura,
+      aperturaMs: x.aperturaMs || t.aperturaMs, fondoBs: x.fondoBs, fondoUsd: x.fondoUsd },
+      t.invitado ? { cierraAdmin: String(u.nombre || u.usuario || "Administrador") } : {});
+    try { await kvSet("turno", S.turno); } catch (e) {}
+  }
+  return true;
+}
+// Hay facturas con número entregado cuya venta no ha subido: se espera. Si el equipo se dañó o se perdió, un
+// administrador las marca como no usadas (las de ESTE equipo no: se suben solas).
+async function cierrePendientes(pend, mias){
+  const aqui = pend.filter(p => mias[p.ventaId]), fuera = pend.filter(p => !mias[p.ventaId]);
+  const lin = p => "<li>Factura <b>#" + esc(p.numero) + "</b>" + (p.entregado ? " · número dado el " + esc(p.entregado) : "") + "</li>";
+  const html = '<div class="m-txt" style="text-align:left;line-height:1.55;">Para que el cierre cuadre, primero tienen que subir al sistema todas las ventas de este turno.' +
+    (aqui.length ? "<br><br><b>En este equipo</b> (se suben solas con internet):<ul>" + aqui.map(lin).join("") + "</ul>" : "") +
+    (fuera.length ? "<br><b>En otro equipo</b> (ábrelo con internet para que suban):<ul>" + fuera.map(lin).join("") + "</ul>" : "") +
+    (fuera.length ? '<span style="color:var(--text-dim);font-size:13px;">Si ese equipo se dañó o se perdió, esas ventas nunca van a llegar: un administrador las puede marcar como <b>no usadas</b> para poder cerrar.</span>' : "") + "</div>";
+  const bt = [{ txt: "Cerrar", v: "" }, { txt: "🔄 Revisar otra vez", v: "otra", cls: "green" }];
+  if (fuera.length) bt.splice(1, 0, { txt: "Marcar como no usadas", v: "marcar", cls: "naranja" });
+  const q = await modal({ icono: "📤", titulo: pend.length === 1 ? "Falta subir 1 venta" : "Faltan subir " + pend.length + " ventas", html: html, botones: bt });
+  if (q === "otra") return await cierreDelSistema();
+  if (q !== "marcar") return false;
+  // Lo autoriza un administrador: el que está en la caja, o con su usuario y contraseña
+  let extra = {}, cred = null;
+  if (!esAdminSes()) {
+    const a = await modal({ icono: "⭐", titulo: "Autoriza un administrador",
+      html: '<div class="m-txt">Las facturas <b>' + fuera.map(p => "#" + esc(p.numero)).join(", ") + "</b> quedan como <b>no usadas</b> (con el motivo). Si una de esas ventas llega después, se registra igual y queda marcada.</div>" +
+        '<label class="lbl" for="nuUsu">Usuario del administrador</label><input class="inp" id="nuUsu" autocapitalize="off" placeholder="Usuario">' +
+        '<label class="lbl" for="nuCla">Contraseña</label><input class="inp" id="nuCla" type="password" placeholder="Contraseña">',
+      botones: [{ txt: "Cancelar", v: null }, { txt: "Marcar como no usadas", v: "ok", cls: "naranja" }], foco: "nuUsu",
+      antes: v => {
+        if (v !== "ok") return true;
+        cred = { u: String(($("nuUsu") || {}).value || "").trim(), c: String(($("nuCla") || {}).value || "") };
+        if (!cred.u || !cred.c) { const i = !cred.u ? $("nuUsu") : $("nuCla"); if (i) i.focus(); return false; }
+        return true;
+      } });
+    if (a !== "ok" || !cred) return false;
+    extra = { adminUsuario: cred.u, adminClave: cred.c };
+  } else if (!await confirmar({ icono: "⭐", titulo: "¿Marcarlas como no usadas?", ok: "Sí, marcar", colorOk: "naranja",
+      html: "Las facturas <b>" + fuera.map(p => "#" + esc(p.numero)).join(", ") + "</b> quedan como <b>no usadas</b>, con el motivo y tu nombre. Si una de esas ventas llega después, se registra igual y queda marcada." })) return false;
+  let r = null;
+  try { r = await api("cj_turno", Object.assign({ op: "no_usados", id: S.turno.id, numeros: fuera.map(p => p.numero) }, extra), 30000); } catch (e) { r = { ok: false, msg: e.message }; }
+  if (!r || !r.ok) { aviso({ icono: "❌", titulo: "No se marcaron", html: esc((r && r.msg) || "El sistema no respondió.") }); return false; }
+  toast("✅ " + r.n + (r.n === 1 ? " factura marcada" : " facturas marcadas") + " como no usada" + (r.n === 1 ? "" : "s"));
+  return await cierreDelSistema();
 }
 // 4.2 · Lo que ya está registrado en el sistema con el efectivo durante este turno, sin decir de qué caja
 async function cieSinCaja(){
@@ -2941,10 +3019,10 @@ async function cerrarTurno(btn){
   const c = Object.assign({}, R, { id: t.id, cajeroId: t.cajeroId, cajeroNombre: t.cajeroNombre, apertura: t.apertura, aperturaMs: t.aperturaMs || 0, cierre: ahoraTxt(), cierreMs: Date.now(),
     fondoBs: t.fondoBs, fondoUsd: t.fondoUsd, efBsContado: x.bs, efUsdContado: x.usd, efBsEsperado: x.espBs, efUsdEsperado: x.espUsd, efBsDif: x.dBs, efUsdDif: x.dUsd,
     sistemaOk: !!sis.ok, sistemaBs: r2(sis.bs || 0), sistemaUsd: r2(sis.usd || 0), sistemaGrupos: cierreSisGrupos(sis),
-    obs: [S.cierreAdmin ? "Lo cerró " + S.cierreAdmin.nombre + " (" + t.cajeroNombre + " no estaba)." : "",
+    obs: [S.cierreAdmin ? "Lo cerró " + S.cierreAdmin.nombre + " (" + t.cajeroNombre + " no estaba)." : t.cierraAdmin ? "Lo cerró el administrador " + t.cierraAdmin + " desde otro equipo (" + t.cajeroNombre + " no estaba)." : "",
           t.fondoExpl ? "Al abrir, el fondo no coincidía: " + t.fondoExpl + "." : "",
           String(CIE.obs || "").trim()].filter(Boolean).join(" "),
-    cerradoPor: S.cierreAdmin ? S.cierreAdmin.nombre : t.cajeroNombre,
+    cerradoPor: S.cierreAdmin ? S.cierreAdmin.nombre : (t.cierraAdmin || t.cajeroNombre),
     queda: { bs: q.bs, usd: q.usd }, entregado: { bs: r2(x.bs - q.bs), usd: r2(x.usd - q.usd) },   // 1b: fondo encadenado
     fondoPrev: t.fondoPrev || null, fondoExpl: t.fondoExpl || "",
     caja: S.datos.caja, equipo: S.datos.equipo, estado: "por_subir", msg: "" });

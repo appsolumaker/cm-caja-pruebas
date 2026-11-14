@@ -11,7 +11,16 @@
 //     venta lo usa aunque la llamada se corte. Se insiste hasta que el sistema lo confirme.
 //   · Sin números (sin internet y se acabaron): el ticket sale PROVISIONAL y el sistema le da el número al subirla.
 //  kv "numeros" = { lista: [n…], desde: { n: ms }, porDevolver: [n…], usados: [n…] }
+//
+//  5.0 (14-11-2026) · EL NÚMERO SE PIDE AL REGISTRAR
+//  Con el sistema nuevo (sus datos dicen cajaWeb.numeros = "pedir") no se apartan números: al tocar Registrar la caja le
+//  pide al sistema el número de ESA venta (cj_numero) y espera hasta 7 segundos con una barra. Si no llega, la venta se
+//  queda en pantalla y se reintenta con el MISMO código de venta (el sistema devuelve el mismo número: no se gasta otro).
+//  No se vende sin número. Los números que el equipo tuviera apartados de antes se devuelven solos (numerosAlDia).
+//  Con un sistema viejo (sin "pedir") todo sigue como antes, con los números apartados.
 // ══════════════════════════════════════════════════════════════
+const NUM_ESPERA_MS = 7000;
+function numPedir(){ return !!(S.datos && S.datos.cajaWeb && S.datos.cajaWeb.numeros === "pedir"); }
 
 function numNormal(o){
   o = o || {};
@@ -42,6 +51,7 @@ function numCambiar(fn){
 }
 function numerosTexto(){
   const N = S.num || numNormal(null);
+  if (numPedir()) return "el sistema le da el número a cada venta al registrarla" + (N.lista.length || N.porDevolver.length ? " · devolviendo " + (N.lista.length + N.porDevolver.length) + " apartado(s) de antes" : "");
   const dev = N.porDevolver.length ? " · " + N.porDevolver.length + " por devolver" : "";
   if (!N.lista.length) return (S.turno ? "⚠️ ninguno apartado: los tickets salen provisionales" : "ninguno (se apartan al abrir el turno)") + dev;
   return N.lista.length + " apartado" + (N.lista.length === 1 ? "" : "s") + ": #" + N.lista[0] + (N.lista.length > 1 ? " al #" + N.lista[N.lista.length - 1] : "") + dev;
@@ -54,9 +64,10 @@ async function numerosAlDia(){
   if (!S.eq || !S.datos || _numOcupado || S.permisoMal || S.online === false || navigator.onLine === false) return;
   const cw = S.datos.cajaWeb || {}, cuantos = Number(cw.apartar) || 10, minutos = Number(cw.minutos) || 30;
   const N0 = S.num || numNormal(null), ahora = Date.now();
-  const viejos = !S.turno ? N0.lista.slice() : N0.lista.filter(n => ahora - (Number(N0.desde[n]) || 0) > minutos * 60000);
+  const pidoAlRegistrar = numPedir();   // 5.0: no se apartan números; los de antes se devuelven todos
+  const viejos = (!S.turno || pidoAlRegistrar) ? N0.lista.slice() : N0.lista.filter(n => ahora - (Number(N0.desde[n]) || 0) > minutos * 60000);
   const quedan = N0.lista.length - viejos.length;
-  const pedir = (S.turno && quedan <= Math.floor(cuantos / 2)) ? cuantos - quedan : 0;
+  const pedir = (!pidoAlRegistrar && S.turno && quedan <= Math.floor(cuantos / 2)) ? cuantos - quedan : 0;
   if (!viejos.length && !N0.porDevolver.length && !pedir) return;
   _numOcupado = true;
   try {
@@ -84,4 +95,31 @@ async function numerosAlDia(){
   } catch (e) {
     // la base de datos del equipo falló: se intenta en la próxima vuelta
   } finally { _numOcupado = false; }
+}
+
+
+// ══ 5.0: la barra mientras se pide el número ══
+// { texto(t), cerrar() } · un mini modal sin botones (no se puede cerrar a medias: la venta está esperando su número)
+function barraProgreso(txt){
+  const f = document.createElement("div");
+  f.className = "mfondo";
+  f.innerHTML = '<div class="modal centrado barra-num"><div class="mb"><div class="bn-txt"></div><div class="bn-barra"><i></i></div></div></div>';
+  document.body.appendChild(f);
+  const t = f.querySelector(".bn-txt");
+  t.textContent = txt;
+  return { texto: x => { t.textContent = x; }, cerrar: () => f.remove() };
+}
+
+// Pide el número de la venta v (con su código: al reintentar el sistema devuelve el mismo).
+// → { numero, barra } (la barra queda abierta: la cierra quien llama) · si no llega, lanza el error (la barra ya se cerró)
+async function pedirNumeroVenta(v){
+  const b = barraProgreso("Registrando la venta…");
+  const lento = setTimeout(() => b.texto("El sistema está tardando un poco, espera un momento…"), 3000);
+  try {
+    const r = await api("cj_numero", { ventaId: v.id, turno: v.turno || "", cajero: (v.pago && v.pago.cajeroNombre) || "" }, NUM_ESPERA_MS);
+    if (r && r.ok && Number(r.numero) > 0) { b.texto("Preparando la factura…"); return { numero: Number(r.numero), barra: b }; }
+    if (r) revisarErrorSistema(r);
+    throw new Error((r && r.msg) || "El sistema no dio el número de la factura.");
+  } catch (e) { b.cerrar(); throw e; }
+  finally { clearTimeout(lento); }
 }

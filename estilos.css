@@ -869,3 +869,11 @@ body:not(.v-vender) #btnOrdenes{display:none;}
 .serv-ed{margin-left:6px;padding:2px 8px;font-size:11px;font-weight:800;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text);cursor:pointer;font-family:inherit;}
 .serv-ed:hover{border-color:var(--green);color:var(--green);}
 .ns-guarda{margin-top:6px;padding:8px 10px;border-radius:8px;background:var(--green-dim);color:var(--text);font-size:12px;line-height:1.5;}
+
+/* 5.0 · barra mientras se pide el número de la factura (numeros.js: barraProgreso) */
+.barra-num{max-width:360px;width:100%;}
+.barra-num .mb{padding:22px 20px;}
+.bn-txt{font-size:16px;font-weight:700;text-align:center;margin-bottom:14px;color:var(--text);}
+.bn-barra{height:8px;border-radius:6px;background:var(--bg3, rgba(255,255,255,0.08));overflow:hidden;position:relative;}
+.bn-barra i{position:absolute;top:0;bottom:0;left:-40%;width:40%;border-radius:6px;background:var(--green, #00e87a);animation:bnMover 1.1s ease-in-out infinite;}
+@keyframes bnMover{0%{left:-40%;}100%{left:100%;}}

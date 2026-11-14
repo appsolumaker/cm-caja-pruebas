@@ -31,13 +31,15 @@
 //  dónde) ③ ¿cuánto? (en efectivo: ¿con cuánto te pagó? y el vuelto) [el delivery] ④ revisar y registrar. Mismas cuentas.
 //  3.6: ① ¿Cómo pagará el cliente? (De contado · Con crédito, total o parcial · Con Cashea) ② Bolívares · Dólares · Pago
 //  mixto ③ el método (solo de esa moneda) ④ el monto («¿Con cuánto te pagó?» ya trae el total) ⑤ el vuelto, si sobra.
+//  5.0 (14-11-2026): el número de la factura se pide al sistema al registrar (numeros.js: pedirNumeroVenta). Con un sistema
+//   viejo sigue con los números apartados.
 //  4.9: en pantalla nunca dice «gaveta» (dice «caja»). El total de la factura, la barra del teléfono y el modal de pago
 //  llevan el monto en Bs grande y el de $ debajo; en Venta en Dólares (TasaBin), el $ grande y los Bs debajo (totalesTxt).
 //  4.9 · Tasas (tasas.js): la BCV ya no se escribe a mano (🔄 la trae del BCV y queda en el sistema); fin de semana /
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "4.9 · 11-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0 · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -122,6 +124,7 @@ function guardarVentaNueva(v){
     const gn = kv.get("numeros"), g = kv.get("seq");   // en este orden: primero el número, después se guarda la venta
     let numeros = null;
     gn.onsuccess = () => {
+      if (Number(v.numeroTicket) > 0) { v.provisional = false; return; }   // 5.0: el número ya lo dio el sistema (pedirNumeroVenta)
       numeros = numNormal(gn.result);
       const n = numTomar(numeros);
       v.numeroTicket = n || 0; v.provisional = !n;
@@ -496,7 +499,7 @@ function pintarBanners(){
       ? "El sistema todavía tiene la tasa BCV del <b>" + fechaCorta(S.tasas.fecha) + "</b>: no se ha actualizado hoy. "
       : "Las tasas de este equipo son del <b>" + fechaCorta(S.tasas.fecha) + "</b>. Con internet se actualizan solas. ") +
     '<a href="#" onclick="actualizarTasaBCV(null);return false;" style="color:inherit;font-weight:800;">🔄 Actualizar tasa BCV</a>.</div>';
-  if (S.turno && S.num && !S.num.lista.length && S.online === false) h += '<div class="banner av">🔢 Este equipo no tiene números de factura apartados: los tickets salen <b>provisionales</b> y el sistema les da su número al subirlos.</div>';
+  if (!numPedir() && S.turno && S.num && !S.num.lista.length && S.online === false) h += '<div class="banner av">🔢 Este equipo no tiene números de factura apartados: los tickets salen <b>provisionales</b> y el sistema les da su número al subirlos.</div>';
   if (_verNueva) h += '<div class="banner av">🔄 Hay una versión nueva de la caja. Se actualiza sola cuando termines esta venta.</div>';
   const c = cuentas();
   if (c.mal) h += '<div class="banner av">⚠️ ' + c.mal + ' venta' + (c.mal > 1 ? "s" : "") + ' no se pudo' + (c.mal > 1 ? "eron" : "") + ' registrar en el sistema. ' + (c.mal > 1 ? "Están guardadas" : "Está guardada") + ' en este equipo: revisa el motivo en <a href="#" onclick="irA(\'ventas\');filtrarVentas(\'mal\');return false;" style="color:inherit;font-weight:800;">Ventas → Con problema</a>.</div>';
@@ -775,6 +778,7 @@ async function agregar(p){
 // ══ LA VENTA (factura) ══
 function pintarNumFactura(){
   const el = $("numFactura"); if (!el) return;
+  if (numPedir()) { el.value = "Nuevo"; el.title = "El sistema le da el número a la factura al registrarla."; return; }   // 5.0
   const N = S.num; el.value = N && N.lista && N.lista.length ? String(N.lista[0]) : (S.turno ? "Provisional" : "—");
 }
 function pintarSelectores(){
@@ -1067,6 +1071,7 @@ async function limpiarVentaConfirmar(){
 function limpiarVenta(){
   const tp = F.tipoPrecio;
   Object.assign(F, nuevaFactura()); F.tipoPrecio = tp;   // el vendedor vuelve al de la caja (como en Ventas)
+  F.idVenta = "";   // 5.0: la próxima venta lleva su propio código (y su propio número)
   $("busca").value = "";
   pintarSelectores(); buscar(); pintarFactura();
   if (_verNueva && !_ventaGuardada) setTimeout(recargarSiSePuede, 300);
@@ -2477,12 +2482,31 @@ async function pgGuardar(pagos, vuelto){
     total: totPant, totalBs: totBs, totalBcv: m === "div" ? (tb > 0 ? r2(totBs / tb) : 0) : totPant,
     estado: "por_subir", intentos: 0, msg: "", avisos: [], numeroFactura: "", subidaEn: 0
   };
+  // 5.0: el número de la factura lo da el sistema ahora. Si no llega, la venta se queda aquí y se reintenta con el MISMO
+  // código (F.idVenta): el sistema devuelve el mismo número y no se gasta otro.
+  let barra = null;
+  if (numPedir()) {
+    F.idVenta = F.idVenta || v.id;
+    v.id = F.idVenta;
+    try { const x = await pedirNumeroVenta(v); barra = x.barra; v.numeroTicket = x.numero; v.provisional = false; }
+    catch (e) {
+      btnLibre(btn); $("pgCerrar").disabled = false;
+      const r = await modal({ icono: "🔢", titulo: "No se pudo obtener el número de la factura",
+        html: '<div class="m-txt">' + (e && e.red ? "No hay conexión con el sistema, o tardó demasiado en responder." : esc((e && e.message) || "El sistema no respondió.")) +
+          "<br><br>La venta <b>no se registró</b> y sigue aquí, tal cual: no entregues el ticket.<br>Revisa el internet y toca <b>🔄 Reintentar</b>.</div>",
+        botones: [{ txt: "Cancelar", v: false }, { txt: "🔄 Reintentar", v: true, cls: "green" }] });
+      if (r === true && P) pgGuardar(pagos, vuelto);
+      return;
+    }
+  }
   try { await guardarVentaNueva(v); }
   catch (e) {
+    if (barra) barra.cerrar();
     btnLibre(btn); $("pgCerrar").disabled = false;
     aviso({ icono: "❌", titulo: "La venta NO se guardó", html: "El equipo no pudo guardarla (" + esc(e.message) + "). No entregues el ticket: vuelve a tocar <b>✅ Registrar</b>. Si sigue fallando, anótala en papel y avísale al administrador." });
     return;
   }
+  if (barra) barra.cerrar();
   S.ventas.push(v); _vendidoLocal = null;
   _ventaGuardada = v;
   btnLibre(btn); $("pgCerrar").disabled = false;

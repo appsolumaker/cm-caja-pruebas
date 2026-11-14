@@ -892,6 +892,8 @@ body:not(.v-vender) #btnOrdenes{display:none;}
 .pgu-chip.pgu-tile.usado{opacity:1;background:var(--green-dim);border:2px solid var(--green);}
 .pgu-cols{gap:4px 12px;}
 @media (max-width:520px){ .pgu-tiles{grid-template-columns:minmax(0,1fr);} }
-.pgu-tipo-tit{grid-column:1/-1;font-size:12px;font-weight:800;color:var(--text-dim);margin:4px 0 -2px;}
-.pgu-tipo-tit:first-child{margin-top:0;}
-.pgu-corte{grid-column:1/-1;height:0;margin:2px 0;}
+/* 5.0g: el nombre del método (o de la cuenta, al elegirla) en grande */
+.pgu-chip.pgu-tile,.pw-s .pgu-chip.pgu-tile{min-height:64px;padding:10px 14px;gap:3px;}
+.pgu-tile .t1{font-size:17px;font-weight:800;}
+.pgu-tile small{font-size:12.5px;}
+.pgu-ctas{margin-top:2px;}

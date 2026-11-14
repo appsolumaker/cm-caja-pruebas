@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0f · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0g · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -1687,33 +1687,60 @@ function pguDesc(m){
   return g[1] + " " + (pguNorm(e) === pguNorm(g[2]) || pguNorm(e).indexOf(pguNorm(g[2])) === 0 ? e : g[2] + " · " + e);
 }
 function metodoDe(nombre){ return metodos().find(x => x.metodo === nombre) || null; }
-// 5.0d: los métodos van en cuadritos, 2 por fila. Los que no tienen cuenta asociada no se muestran (no se pueden usar).
-//  · Tipo con UNA cuenta: un cuadrito con el tipo arriba y la cuenta abajo en pequeño («📱 Pago Móvil / Banco Mercantil»).
-//  · Tipo con VARIAS cuentas: el tipo como título pequeño y un cuadrito por cuenta, con el nombre de la cuenta en grande.
+// 5.0g: primero el MÉTODO y después la CUENTA (solo si ese método tiene varias). Un cuadro grande por método:
+//  · Con UNA cuenta: debajo, en pequeño, el banco; al tocarlo se usa esa cuenta.
+//  · Con VARIAS: debajo dice «3 cuentas»; al tocarlo, en el mismo lugar sale «¿A qué cuenta entra…?» con un cuadro por cuenta.
+//  Los métodos sin cuenta asociada no se muestran (no se pueden usar). Sirve igual en el paso Método, «＋ Otro método» y el vuelto.
+let PGU_ABIERTO = null;   // { fn, mon, tipo }: el método del que se está eligiendo la cuenta
+function pguAbierto(fn){ return !!(PGU_ABIERTO && PGU_ABIERTO.fn === fn); }
+function pguRepintar(fn){
+  if (!P) return;
+  if (fn === "pgVtAgregar") pgPintarVuelto(); else if (fn === "pgAgregar") pgPintarMetodos(); else pgWzPintar();
+  setTimeout(() => { const f = document.querySelector(".pgu-ctas .pgu-chip") || document.querySelector(".pw-s:not(.oculto) .pgu-chip"); if (f && window.innerWidth > 820) f.focus(); }, 40);
+}
+function pguElegir(fn, mon, tipo){ PGU_ABIERTO = { fn, mon, tipo }; pguRepintar(fn); }
+function pguVolver(){ const fn = PGU_ABIERTO && PGU_ABIERTO.fn; PGU_ABIERTO = null; if (fn) pguRepintar(fn); }
+function pguCuenta(fn, i){ PGU_ABIERTO = null; if (typeof window[fn] === "function") window[fn](i); }
+// Los métodos con cuenta de una moneda, juntos por tipo (los «Otros» van cada uno aparte)
+function pguGruposDe(mon){
+  const orden = PGU_GRUPOS[mon].map(g => g[0]), grupos = [];
+  metodos().map((m, i) => ({ m, i })).filter(o => o.m.tipo === mon && o.m.conCuenta)
+    .sort((a, b) => (orden.indexOf(pguTipoDe(a.m)) - orden.indexOf(pguTipoDe(b.m))) || (a.i - b.i))
+    .forEach(o => {
+      const t = pguTipoDe(o.m), g = t === "otro" ? null : grupos.find(x => x.tipo === t);
+      if (g) g.ms.push(o); else grupos.push({ tipo: t === "otro" ? "otro#" + o.i : t, g: pguGrupo(o.m), ms: [o] });
+    });
+  return grupos;
+}
 function pgFilasMetodos(fn, usados, conCredito, soloMon){
+  const esUsado = o => usados.indexOf(o.m.metodo) >= 0;
+  const tile = (cls, us, onclick, tit, a, b) => '<button type="button" class="pgu-chip pgu-tile ' + cls + (us ? " usado" : "") + '" title="' + esc(tit) + '" onclick="' + onclick + '">' +
+    '<span class="t1">' + a + "</span>" + (b ? "<small>" + b + "</small>" : "") + "</button>";
+  // ¿A qué cuenta? (el método ya está elegido)
+  if (pguAbierto(fn)) {
+    const A = PGU_ABIERTO, gr = pguGruposDe(A.mon).find(x => x.tipo === A.tipo);
+    if (gr && gr.ms.length > 1) {
+      const cls = A.mon === "BS" ? "bs" : "usd", vt = fn === "pgVtAgregar" || fn === "pgVtDirecto";
+      return '<div class="pw-preg ' + cls + '">' + (vt ? "Vuelto por " + gr.g[1] + " " + esc(gr.g[2]) + ": ¿de qué cuenta sale?" : "¿A qué cuenta entra el " + gr.g[1] + " " + esc(gr.g[2]) + "?") + "</div>" +
+        '<div class="pgu-tiles pgu-ctas">' + gr.ms.map(o => tile(cls, esUsado(o), "pguCuenta('" + fn + "'," + o.i + ")", o.m.metodo, esc(pguEtiqueta(o.m)), "")).join("") + "</div>" +
+        '<div style="text-align:center;margin-top:10px;"><button type="button" class="pgu-mas" onclick="pguVolver()">← Otro método</button></div>';
+    }
+    PGU_ABIERTO = null;   // ya no tiene varias cuentas (se actualizaron los datos): la lista normal
+  }
   const cols = [];
   [["BS", "bs", "💙 En bolívares"], ["USD", "usd", "💚 En dólares"]].forEach(([mon, cls, tit]) => {
     if (soloMon && soloMon !== mon) return;   // 3.5: el paso ② muestra solo la moneda elegida
-    const orden = PGU_GRUPOS[mon].map(g => g[0]);
-    const ms = metodos().map((m, i) => ({ m, i })).filter(o => o.m.tipo === mon && o.m.conCuenta)
-      .sort((a, b) => (orden.indexOf(pguTipoDe(a.m)) - orden.indexOf(pguTipoDe(b.m))) || (a.i - b.i));
-    if (!ms.length) return;
-    const cuantos = {};
-    ms.forEach(o => { const t = pguTipoDe(o.m); cuantos[t] = (cuantos[t] || 0) + 1; });
-    let tipoAnt = "", grupoAnt = false;
-    cols.push('<div class="pgu-col">' + (soloMon ? "" : '<div class="pgu-mon-tit ' + cls + '">' + tit + "</div>") + '<div class="pgu-tiles">' + ms.map(o => {
-      const g = pguGrupo(o.m), t = g[0], et = pguEtiqueta(o.m), us = usados.indexOf(o.m.metodo) >= 0, varias = cuantos[t] > 1;
-      const btn = (a, b) => '<button type="button" class="pgu-chip pgu-tile ' + cls + (us ? " usado" : "") + '" title="' + esc(o.m.metodo) + '" onclick="' + fn + "(" + o.i + ')">' +
-        '<span class="t1">' + a + "</span>" + (b ? "<small>" + b + "</small>" : "") + "</button>";
-      if (varias) {   // varias cuentas del mismo tipo: título del tipo y la cuenta en grande
-        const titulo = t !== tipoAnt ? (tipoAnt ? '<div class="pgu-corte"></div>' : "") + '<div class="pgu-tipo-tit">' + g[1] + " " + esc(g[2]) + "</div>" : "";
-        tipoAnt = t; grupoAnt = true;
-        return titulo + btn(esc(et), "");
+    const grupos = pguGruposDe(mon);
+    if (!grupos.length) return;
+    cols.push('<div class="pgu-col">' + (soloMon ? "" : '<div class="pgu-mon-tit ' + cls + '">' + tit + "</div>") + '<div class="pgu-tiles">' + grupos.map(gr => {
+      const g = gr.g, otro = gr.tipo.indexOf("otro") === 0;
+      if (gr.ms.length === 1) {   // una sola cuenta: el método en grande y el banco debajo
+        const o = gr.ms[0], et = pguEtiqueta(o.m);
+        const igual = otro || pguNorm(et) === pguNorm(g[2]) || pguNorm(et).indexOf(pguNorm(g[2])) === 0;   // el nombre ya dice el método
+        return tile(cls, esUsado(o), fn + "(" + o.i + ")", o.m.metodo, (otro ? "" : g[1] + " ") + esc(igual ? et : g[2]), igual ? "" : esc(et));
       }
-      const corte = grupoAnt ? '<div class="pgu-corte"></div>' : "";   // después de un grupo, el siguiente tipo empieza en su propia fila
-      tipoAnt = t; grupoAnt = false;
-      const solo = t === "otro" || pguNorm(et) === pguNorm(g[2]) || pguNorm(et).indexOf(pguNorm(g[2])) === 0;   // el nombre ya dice el tipo: una sola línea
-      return corte + btn((t === "otro" ? "" : g[1] + " ") + esc(solo ? et : g[2]), solo ? "" : esc(et));
+      const us = gr.ms.find(esUsado);   // varias cuentas: al tocarlo se elige la cuenta
+      return tile(cls, !!us, "pguElegir('" + fn + "','" + mon + "','" + gr.tipo + "')", g[2], g[1] + " " + esc(g[2]), us ? "✓ " + esc(pguEtiqueta(us.m)) : gr.ms.length + " cuentas");
     }).join("") + "</div></div>");
   });
   if (!cols.length) return '<div class="pw-aviso">No hay métodos de pago ' + (soloMon === "BS" ? "en bolívares " : soloMon === "USD" ? "en dólares " : "") + "con una cuenta asociada. Asígnales su cuenta en Configuración del sistema.</div>";
@@ -1991,7 +2018,7 @@ function pgWzPasos(){
 function pgHaySobra(){ return !!P && P.lineas.length > 0 && pgEstado().pend < -TOL; }
 function pgIr(k){
   if (!P) return;
-  P.paso = k; if (k !== "4") P.listo = null; P.verOtros = false;
+  P.paso = k; if (k !== "4") P.listo = null; P.verOtros = false; PGU_ABIERTO = null;
   if (k === "3" || k === "V") { pgWzSync(); pgPintarLineas(); pgVtAjustar(); pgPintarVuelto(); pgActualizar(); }
   pgWzPintar();
   setTimeout(() => {
@@ -2055,7 +2082,7 @@ function pgWzPintar(){
   // ③ El método (3.6: pantalla aparte, solo de la moneda elegida)
   if (k === "M") {
     const mon = P.como === "BS" ? "Bolívares" : P.como === "USD" ? "Dólares" : "";
-    $("pgPM").innerHTML = '<div class="pw-preg' + (P.como === "BS" ? " bs" : P.como === "USD" ? " usd" : "") + '">' + (P.como === "MIX" ? "Toca un método en Bs y uno en $" : "¿Por dónde paga en " + mon.toLowerCase() + "?") + "</div>" +
+    $("pgPM").innerHTML = (pguAbierto("pgWzMetodo") ? "" : '<div class="pw-preg' + (P.como === "BS" ? " bs" : P.como === "USD" ? " usd" : "") + '">' + (P.como === "MIX" ? "Toca un método en Bs y uno en $" : "¿Por dónde paga en " + mon.toLowerCase() + "?") + "</div>") +
       pgFilasMetodos("pgWzMetodo", P.lineas.map(l => l.metodo), false, P.como === "MIX" ? null : P.como);
   }
   // ③ ¿Cuánto?
@@ -2064,7 +2091,7 @@ function pgWzPintar(){
     const monP3 = mix ? P.lineas[0].tipo : P.como;   // 5.0e: la franja con el color de la moneda
     $("pgP3").innerHTML = '<div class="pw-preg' + (monP3 === "BS" ? " bs" : monP3 === "USD" ? " usd" : "") + '">' + (P.tipo === "credito" ? "¿Cuánto paga ahora? Lo demás queda a deber" : mix ? "¿Cuánto paga en " + (P.lineas[0].tipo === "USD" ? "$" : "Bs") + "?" : "¿Cuánto paga?") + "</div>";   // 5.0d: una sola línea
     $("pgOtrosBox").innerHTML = P.lineas.length >= 3 ? "" : (P.verOtros
-      ? '<div class="pw-preg pw-sub">Toca el otro método</div>' + pgFilasMetodos("pgWzOtro", P.lineas.map(l => l.metodo), false, P.como === "MIX" ? null : P.como) + '<div style="text-align:center;"><button type="button" class="lnk" onclick="P.verOtros=false;pgWzPintar()">Cancelar</button></div>'
+      ? (pguAbierto("pgWzOtro") ? "" : '<div class="pw-preg pw-sub">Toca el otro método</div>') + pgFilasMetodos("pgWzOtro", P.lineas.map(l => l.metodo), false, P.como === "MIX" ? null : P.como) + '<div style="text-align:center;"><button type="button" class="lnk" onclick="P.verOtros=false;PGU_ABIERTO=null;pgWzPintar()">Cancelar</button></div>'
       : '<div style="text-align:center;margin:6px 0;"><button type="button" class="pgu-mas" onclick="P.verOtros=true;pgWzPintar()">＋ Otro método</button></div>');
   }
   // El vuelto (3.6: pantalla aparte)
@@ -2072,7 +2099,7 @@ function pgWzPintar(){
     const st = pgEstado(), sobraX = -st.pendX;
     $("pgPV").innerHTML = '<div class="pw-preg">💸 Sobran ' + (sobraX > 0 ? txtU(-st.pend) + " · Bs " + fmt(r2(sobraX * bsPorU())) : "") + "</div>" +
       (P.sinVuelto ? '<div class="pw-sinvt" style="font-size:15px;">No le das vuelto: queda como diferencial a favor del negocio.<br><button type="button" class="lnk" onclick="pgWzSinVuelto(false)">Mejor sí le doy vuelto</button></div>'
-        : P.vt.on ? "" : '<div class="pw-preg pw-sub">¿En qué le das el vuelto?</div>' + pgFilasMetodos("pgVtDirecto", [], false) +
+        : P.vt.on ? "" : (pguAbierto("pgVtDirecto") ? "" : '<div class="pw-preg pw-sub">¿En qué le das el vuelto?</div>') + pgFilasMetodos("pgVtDirecto", [], false) +
           '<div style="text-align:center;margin-top:8px;"><button type="button" class="lnk" onclick="pgWzSinVuelto(true)">No le doy vuelto (queda a favor del negocio)</button></div>');
   }
   // Delivery: los días si queda a deber y no los eligió en el paso ①
@@ -2187,6 +2214,7 @@ async function pgA4(){ const b = $("pgSig"); btnOcupado(b, "Revisando…"); let 
 function pgAtras(){
   if (!P) { cerrarPago(); return; }
   if ($("pgCerrar").disabled) return;
+  if (PGU_ABIERTO) { pguVolver(); return; }   // 5.0g: eligiendo la cuenta, «Atrás» vuelve a los métodos
   const l = pgWzPasos().filter(x => !x.salta), i = l.findIndex(x => x.k === P.paso);
   if (i <= 0) { cerrarPago(); return; }
   pgIr(l[i - 1].k);

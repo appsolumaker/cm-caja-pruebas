@@ -16,7 +16,8 @@
 //  Con el sistema nuevo (sus datos dicen cajaWeb.numeros = "pedir") no se apartan números: al tocar Registrar la caja le
 //  pide al sistema el número de ESA venta (cj_numero) y espera hasta 7 segundos con una barra. Si no llega, la venta se
 //  queda en pantalla y se reintenta con el MISMO código de venta (el sistema devuelve el mismo número: no se gasta otro).
-//  No se vende sin número. Los números que el equipo tuviera apartados de antes se devuelven solos (numerosAlDia).
+//  No se vende sin número. Los números que el equipo tuviera apartados de antes se OLVIDAN (no se devuelven, para que
+//  el sistema no los vuelva a dar): NUMEROS_aplicar del contenedor los anota como NO USADOS.
 //  Con un sistema viejo (sin "pedir") todo sigue como antes, con los números apartados.
 // ══════════════════════════════════════════════════════════════
 const NUM_ESPERA_MS = 7000;
@@ -51,7 +52,7 @@ function numCambiar(fn){
 }
 function numerosTexto(){
   const N = S.num || numNormal(null);
-  if (numPedir()) return "el sistema le da el número a cada venta al registrarla" + (N.lista.length || N.porDevolver.length ? " · devolviendo " + (N.lista.length + N.porDevolver.length) + " apartado(s) de antes" : "");
+  if (numPedir()) return "el sistema le da el número a cada venta al registrarla";
   const dev = N.porDevolver.length ? " · " + N.porDevolver.length + " por devolver" : "";
   if (!N.lista.length) return (S.turno ? "⚠️ ninguno apartado: los tickets salen provisionales" : "ninguno (se apartan al abrir el turno)") + dev;
   return N.lista.length + " apartado" + (N.lista.length === 1 ? "" : "s") + ": #" + N.lista[0] + (N.lista.length > 1 ? " al #" + N.lista[N.lista.length - 1] : "") + dev;
@@ -61,13 +62,21 @@ function numerosTexto(){
 // después de cada venta, al abrir y al cerrar el turno.
 let _numOcupado = false;
 async function numerosAlDia(){
-  if (!S.eq || !S.datos || _numOcupado || S.permisoMal || S.online === false || navigator.onLine === false) return;
+  if (!S.eq || !S.datos || _numOcupado || S.permisoMal) return;
+  // 5.0: con el sistema nuevo no se apartan ni se devuelven números. Si el equipo tenía apartados de antes, los OLVIDA (no se
+  // devuelven: así el sistema nunca vuelve a dar un número viejo). En el sistema quedan como apartados hasta que el dueño
+  // corre NUMEROS_aplicar, que los anota como NO USADOS con su motivo.
+  if (numPedir()) {
+    const N = S.num || numNormal(null);
+    if (N.lista.length || N.porDevolver.length) { _numOcupado = true; try { await numCambiar(x => { x.lista = []; x.desde = {}; x.porDevolver = []; }); } catch (e) {} finally { _numOcupado = false; } pintarNumFactura(); }
+    return;
+  }
+  if (S.online === false || navigator.onLine === false) return;
   const cw = S.datos.cajaWeb || {}, cuantos = Number(cw.apartar) || 10, minutos = Number(cw.minutos) || 30;
   const N0 = S.num || numNormal(null), ahora = Date.now();
-  const pidoAlRegistrar = numPedir();   // 5.0: no se apartan números; los de antes se devuelven todos
-  const viejos = (!S.turno || pidoAlRegistrar) ? N0.lista.slice() : N0.lista.filter(n => ahora - (Number(N0.desde[n]) || 0) > minutos * 60000);
+  const viejos = !S.turno ? N0.lista.slice() : N0.lista.filter(n => ahora - (Number(N0.desde[n]) || 0) > minutos * 60000);
   const quedan = N0.lista.length - viejos.length;
-  const pedir = (!pidoAlRegistrar && S.turno && quedan <= Math.floor(cuantos / 2)) ? cuantos - quedan : 0;
+  const pedir = (S.turno && quedan <= Math.floor(cuantos / 2)) ? cuantos - quedan : 0;
   if (!viejos.length && !N0.porDevolver.length && !pedir) return;
   _numOcupado = true;
   try {

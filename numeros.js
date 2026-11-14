@@ -125,7 +125,8 @@ function barraProgreso(txt){
 async function pedirNumeroVenta(v){
   const b = barraProgreso("Registrando la venta…");
   try {
-    const r = await api("cj_numero", { ventaId: v.id, turno: v.turno || "", cajero: (v.pago && v.pago.cajeroNombre) || "" }, NUM_ESPERA_MS);
+    const r = await api("cj_numero", { ventaId: v.id, turno: v.turno || "", cajero: (v.pago && v.pago.cajeroNombre) || "", invitado: !!(S.turno && S.turno.invitado) }, NUM_ESPERA_MS);
+    if (r && r.codigo === "TURNO_OTRO") { S.turnoOtro = r.msg || "Tu turno siguió en otro equipo."; try { pintarBanners(); } catch (e) {} }   // 5.0i: este equipo ya no vende
     if (r && r.ok && Number(r.numero) > 0) { return { numero: Number(r.numero), barra: b }; }
     if (r) revisarErrorSistema(r);
     throw new Error((r && r.msg) || "El sistema no dio el número de la factura.");

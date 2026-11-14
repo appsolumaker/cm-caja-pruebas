@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0h · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0i · 14-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -237,7 +237,8 @@ function listo(){
   // 2.9: lo PRIMERO es el cajero. Sin turno: «¿Quién está en la caja?» (antes de la facturación). Con turno: su PIN
   // al abrir la caja, y también después de activar el equipo o de entrar otra vez con usuario y clave.
   if (!S.turno && (S.vista === "vender" || !_listoYa)) { mostrarVista("turno"); seguro(pintarTurno); }
-  if (S.turno && (!_listoYa || S.pedirPin)) bloquear();   // cajero.js
+  const yaEntro = S.eq && S.eq.auto && S.turno && S.recienEntro && Date.now() - S.recienEntro < 120000 && usuarioSes().toLowerCase() === String(S.turno.cajeroId || "").toLowerCase();   // 5.0i: recién entró con su contraseña
+  if (S.turno && (!_listoYa || S.pedirPin) && !yaEntro) bloquear();   // cajero.js
   S.pedirPin = false;
   if (_listoYa) { sincronizar(); return; }
   _listoYa = true;
@@ -348,6 +349,10 @@ function irA(v){
   if (!S.datos) return;
   if (S.cierreAdmin && v !== "cierre") { cancelarCierreAdmin(); return; }   // cajero.js: el Administrador solo vino a cerrar el turno
   if (v === "vender" && !S.turno) { mostrarVista("turno"); pintarTurno(); return; }   // primero, abrir turno
+  if (v === "cierre" && S.turno && (S.turno.invitado || S.turno.adoptado)) {   // 5.0i · Tanda 3B-1 (provisional hasta la 3B-2)
+    aviso({ icono: "🔒", titulo: "Cierre desde el sistema", html: S.turno.invitado ? "Este es el turno de <b>" + esc(S.turno.de || "otro cajero") + "</b>. Cerrarlo desde aquí llega en la próxima entrega (Tanda 3B-2)." : "Este turno empezó en otro equipo: su cierre se calcula con lo que está en el sistema. Llega en la próxima entrega (Tanda 3B-2)." });
+    return;
+  }
   mostrarVista(v);
   if (v === "ventas") pintarVentas();
   if (v === "ajustes") pintarAjustes();
@@ -418,7 +423,7 @@ function menuVtaAccion(a){
   if (a === "actualizar") { actualizarDatos(null, false); toast("🔄 Actualizando datos…"); return; }
   if (a === "cierre") { irCierre(); return; }
   if (a === "bloquear") { bloquear(); return; }
-  if (a === "sacar") { gvGasto(); return; }   // 3.3 (gaveta.js)
+  if (a === "sacar") { if (S.turno && S.turno.invitado) { aviso({ icono: "💸", titulo: "Solo el cajero", html: "Sacar efectivo de la caja de <b>" + esc(S.turno.de || "otro cajero") + "</b> lo hace su cajero." }); return; } gvGasto(); return; }   // 3.3 (gaveta.js)
   if (a === "facturas") { abrirFacturasAnt(); return; }   // 3.9 (tanda2.js)
   if (a === "servicio") { nuevoServicio(); return; }       // 3.9 (tanda2.js)
   irA(a);
@@ -491,6 +496,7 @@ function pintarBanners(){
   let h = "";
   { const rl = relojTxt(); if (rl) h += '<div class="banner av">' + rl + "</div>"; }   // 4.4
   if (S.permisoMal) h += '<div class="banner mal">⛔ ' + esc(S.permisoMal) + (S.reemplazado ? " Las ventas guardadas se suben solas; cierra el turno." : ' Puedes seguir vendiendo; las ventas quedan guardadas en este equipo. <a href="#" onclick="olvidarEquipo();return false;" style="color:inherit;font-weight:800;">Activar otra vez</a>') + "</div>";
+  if (S.turnoOtro) h += '<div class="banner mal">🧾 ' + esc(S.turnoOtro) + ' <a href="#" onclick="location.reload();return false;" style="color:inherit;font-weight:800;">Entrar otra vez</a></div>';   // 5.0i · Tanda 3B-1
   if (S.datosMal) h += '<div class="banner mal">⛔ ' + esc(S.datosMal) + ' <a href="#" onclick="actualizarDatos(null,false);return false;" style="color:inherit;font-weight:800;">Reintentar</a></div>';
   if (S.sesionMal) h += '<div class="banner av">🔐 ' + esc(S.sesionMal) + ' <a href="#" onclick="pedirEntrarOtraVez();return false;" style="color:inherit;font-weight:800;">Entrar</a></div>';
   if (S.datos && typeof hayQuePreguntarTasa === "function" && hayQuePreguntarTasa()) h += '<div class="banner av">💱 Hoy el BCV no tiene tasa propia: elige con cuál se cobra hoy. ' +   // 4.9 (tasas.js)
@@ -1441,6 +1447,11 @@ async function crearCliente(btn){
 // ✅ Registrar Venta, como en Ventas: si la factura está en Genérico, primero "¿A quién le vendes?"
 // S2: solo se vende con la caja abierta por el cajero del turno (el Administrador que vino a cerrar el turno de otro no vende)
 function puedeVender(){
+  if (S.turnoOtro) {   // 5.0i · Tanda 3B-1: el mismo cajero siguió el turno en otro equipo
+    try { cerrarPago(); } catch (e) {}
+    aviso({ icono: "🧾", titulo: "Tu turno siguió en otro equipo", html: esc(S.turnoOtro) + "<br><br>Si quieres volver a vender aquí, toca <b>Entrar otra vez</b> (arriba): este equipo se queda con la caja y el otro deja de vender." });
+    return false;
+  }
   if (S.reemplazado) {   // 4.1 · un solo equipo por caja: otro equipo ya es esta caja
     try { cerrarPago(); } catch (e) {}
     aviso({ icono: "🧾", titulo: "Este equipo ya no es la caja", html: esc(S.permisoMal || "Otro equipo reemplazó a este.") + "<br><br>Las ventas que tenga guardadas se suben solas con internet. Cierra el turno en <b>☰ Menú → Cerrar turno</b>." });

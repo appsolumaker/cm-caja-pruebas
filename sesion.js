@@ -428,7 +428,7 @@ async function irSistema(btn){
     return;
   }
   if (!sesionViva()) { aviso({ icono: "🔐", titulo: "Primero entra", html: "Entra con tu usuario y clave para abrir el sistema." }); return; }
-  if (S.eq && S.eq.auto) { irSistemaAqui(btn); return; }   // 5.0i · Tanda 3B-1: en esta misma pestaña
+  irSistemaAqui(btn); return;   // 5.0j: vuelve a la pestaña del sistema (lo de abajo quedó de antes)
   // 1) Si el sistema abrió esta caja y sigue abierto, se vuelve a esa pestaña
   try {
     if (window.opener && !window.opener.closed) {
@@ -459,18 +459,28 @@ async function irSistema(btn){
   try { w.location.href = r.url; w.focus(); } catch (e) { location.href = r.url; }
 }
 
-// 5.0i · Tanda 3B-1: 🏠 Sistema en la misma pestaña. Primero sube lo pendiente; si algo no sube, pregunta.
+// 5.0j · 🏠 Sistema: primero sube lo pendiente. Después vuelve a la pestaña del sistema:
+//  1) si el navegador deja pasar a ella, pasa (la caja sigue abierta);
+//  2) si no, y el sistema abrió esta caja, la caja se cierra y el navegador vuelve solo a la pestaña del sistema;
+//  3) si la caja no la abrió el sistema (se abrió directo), el sistema se abre aquí mismo con un pase (sin pedir login).
 async function irSistemaAqui(btn){
   if (ventaAMedias()) { aviso({ icono: "🧾", titulo: "Hay una venta a medias", html: "Termina la venta (o vacíala con 🗑️) antes de ir al sistema." }); return; }
   btnOcupado(btn, "Subiendo…");
   try { await sincronizar(true); } catch (e) {}
   const n = (S.ventas || []).filter(v => v.estado === "por_subir").length;
-  if (n) {
-    btnLibre(btn);
-    if (!await confirmar({ icono: "📤", titulo: n === 1 ? "Falta subir 1 venta" : "Faltan subir " + n + " ventas", ok: "Ir al sistema igual", colorOk: "naranja",
-      html: "Todavía no suben al sistema. Quedan guardadas en este equipo y se suben solas la próxima vez que entres a la caja con internet." })) return;
-    btnOcupado(btn, "Abriendo…");
-  } else btnOcupado(btn, "Abriendo…");
+  btnLibre(btn);
+  if (n && !await confirmar({ icono: "📤", titulo: n === 1 ? "Falta subir 1 venta" : "Faltan subir " + n + " ventas", ok: "Ir al sistema igual", colorOk: "naranja",
+      html: "Todavía no suben al sistema. Quedan guardadas en este equipo y se suben solas la próxima vez que abras la caja con internet." })) return;
+  let op = null;
+  try { op = window.opener && !window.opener.closed ? window.opener : null; } catch (e) { op = null; }
+  if (op) {
+    try { op.focus(); } catch (e) {}
+    await espera(350);
+    if (document.visibilityState === "hidden") return;   // pasó a la pestaña del sistema
+    try { window.close(); } catch (e) {}
+    await espera(300);   // si el navegador la cerró, aquí termina
+  }
+  btnOcupado(btn, "Abriendo…");
   let r = null;
   try { r = await api("cj_pase", {}, 30000); } catch (e) { r = { ok: false, msg: e.message }; }
   if (r && (r.ok || r.codigo === "SOLO_CAJA") && r.url) { location.href = r.url; return; }

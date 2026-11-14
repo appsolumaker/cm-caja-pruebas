@@ -121,14 +121,13 @@ function barraProgreso(txt){
 
 // Pide el número de la venta v (con su código: al reintentar el sistema devuelve el mismo).
 // → { numero, barra } (la barra queda abierta: la cierra quien llama) · si no llega, lanza el error (la barra ya se cerró)
+// 5.0h: la barra dice solo «Registrando la venta…» de principio a fin.
 async function pedirNumeroVenta(v){
   const b = barraProgreso("Registrando la venta…");
-  const lento = setTimeout(() => b.texto("El sistema está tardando un poco, espera un momento…"), 3000);
   try {
     const r = await api("cj_numero", { ventaId: v.id, turno: v.turno || "", cajero: (v.pago && v.pago.cajeroNombre) || "" }, NUM_ESPERA_MS);
-    if (r && r.ok && Number(r.numero) > 0) { b.texto("Preparando la factura…"); return { numero: Number(r.numero), barra: b }; }
+    if (r && r.ok && Number(r.numero) > 0) { return { numero: Number(r.numero), barra: b }; }
     if (r) revisarErrorSistema(r);
     throw new Error((r && r.msg) || "El sistema no dio el número de la factura.");
   } catch (e) { b.cerrar(); throw e; }
-  finally { clearTimeout(lento); }
 }

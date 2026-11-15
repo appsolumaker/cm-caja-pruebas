@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0p · 15-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0q · 15-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -3343,7 +3343,7 @@ function pintarVentas(){
     if (v.numeroFactura && String(v.numeroTicket || "") !== String(v.numeroFactura)) msg = '<div class="vt-msg av">⚠️ El ticket salió ' + (v.numeroTicket ? "con el #" + esc(v.numeroTicket) : "provisional") + " y quedó registrada con el <b>#" + esc(v.numeroFactura) + "</b>. Reimprímelo si el cliente lo necesita.</div>" + msg;
     return '<div class="vt-item" id="vt_' + v.id + '"><div class="vt-cab" onclick="this.parentNode.classList.toggle(\'abierto\')"><div style="min-width:0;"><div class="n">' + esc(nroL) + " · " + fechaCorta(v.fecha) + " " + horaDe(v.creada) + (v.fechaAnt ? ' <span class="otro-dia-tag">📅 de otro día</span>' : "") + (v._otro ? ' <span class="otro-eq-tag">📱 otro equipo</span>' : "") + (v.pago.cajeroNombre ? ' <span style="color:var(--text-dim);font-weight:600;">· ' + esc(v.pago.cajeroNombre) + "</span>" : "") + "</div>" +
       '<div class="s">' + esc(p.clienteNombre || "Genérico") + (p.clienteCedula ? " · " + esc(p.clienteCedula) : "") + "</div>" + estadoHTML(v) + "</div>" +
-      '<div class="m">Bs ' + fmt(v.totalBs) + '<div style="font-size:11px;color:var(--text-dim);font-weight:600;">$' + fmt(v.total) + (v.unidad === "div" ? " div" : "") + "</div></div></div>" +
+      '<div class="m">Bs ' + fmt(v.totalBs) + '<div class="m2">$' + fmt(v.total) + (v.unidad === "div" ? " div" : "") + "</div></div></div>" +   // 5.0q: los $ casi del tamaño de los Bs
       '<div class="vt-det">' + msg + "<table>" + items + "</table><table>" + pagos + "</table>" +
       '<div style="font-size:12px;color:var(--text-dim);">' + (v.unidad === "div" ? "💵 Venta en Dólares · " : "") + 'Tasa BCV Bs ' + fmt(v.tasas.bcv) + (v.tasas.div ? " · Divisas Bs " + fmt(v.tasas.div) : "") + (p.descuentoTipo !== "ninguno" && p.descuentoValor ? " · descuento " + (p.descuentoTipo === "pct" ? fmt(p.descuentoValor) + " %" : "$" + fmt(p.descuentoValor)) : "") + (p.referencia ? " · Ref: " + esc(p.referencia) : "") + (p.ordenId ? " · " + (p.canal === "WEB" ? "🌐 pedido web " : "📋 orden ") + esc(p.ordenId) : "") + "</div>" +
       '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"><button type="button" class="btn sm" onclick="imprimirPorId(\'' + v.id + '\')">🖨️ Reimprimir</button>' +

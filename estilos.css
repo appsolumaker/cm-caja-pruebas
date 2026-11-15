@@ -789,6 +789,8 @@ body:not(.v-vender) #btnOrdenes{display:none;}
 #vVentas .rc-met{background:var(--bg2);}
 #vVentas .vt-item{background:var(--bg3);}
 #vVentas .vt-cab .n{font-size:14px;}
+#vVentas .vt-cab .m{font-size:17px;line-height:1.2;}   /* 5.0q: los $ un poco más pequeños que los Bs, que se lean bien */
+#vVentas .vt-cab .m .m2{font-size:15px;font-weight:800;color:var(--text-dim);margin-top:2px;}
 /* 5.0o: 🔄 Actualizar en la barra de arriba */
 .btn-act-top span{display:inline-block;}
 .btn-act-top.girando span{animation:girar 0.8s linear infinite;}

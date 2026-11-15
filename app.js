@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0q · 15-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0r · 15-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -3272,16 +3272,18 @@ function pintarVentas(){
   const R = tu ? resumenTurno(tu) : null;
   const fi = tu ? (tu.fondoContado || { bs: tu.fondoBs, usd: tu.fondoUsd }) : null;   // 3.6: lo que había en la caja al abrir
   const desde = tu ? (String(tu.apertura).slice(0, 10) === hoy ? "desde las " + horaDe(tu.apertura) : "desde el " + fechaCorta(tu.apertura) + " " + horaDe(tu.apertura)) : "";
-  const kp = (color, ico, tit, val, sub) => '<div class="vk-card vk-' + color + '"><div class="vk-tit">' + tit + '</div><div class="vk-ico">' + ico + '</div><div class="vk-val">' + val + "</div>" + (sub ? '<div class="vk-sub">' + sub + "</div>" : "") + "</div>";
+  // 5.0r: grande = la segunda línea en letra grande (la fecha del turno, los $); extra = una línea pequeña debajo
+  const kp = (color, ico, tit, val, sub, grande, extra) => '<div class="vk-card vk-' + color + '"><div class="vk-tit">' + tit + '</div><div class="vk-ico">' + ico + '</div><div class="vk-val">' + val + "</div>" +
+    (sub ? '<div class="vk-sub' + (grande ? " vk-sub-g" : "") + '">' + sub + "</div>" : "") + (extra ? '<div class="vk-sub">' + extra + "</div>" : "") + "</div>";
   let h = "";
   if (tu) {
     const nOtras = otrasT.filter(v => !v.fechaAnt).length;
-    h += kp("verde", "👤", "Turno abierto", esc(tu.cajeroNombre), desde) +
+    h += kp("verde", "👤", "Turno abierto", esc(tu.cajeroNombre), desde, true) +
       kp("azul", "💵", "Fondo inicial", '<div class="vk-fila"><span>Efectivo Bs</span><b>Bs ' + fmt(fi.bs) + '</b></div><div class="vk-fila"><span>Efectivo $</span><b>$' + fmt(fi.usd) + "</b></div>", "") +
       kp("morado", "🧾", "Ventas del turno", String(R.ventas + R.otroDia.n), (nOtras ? nOtras + " en otro equipo" : (R.ventas + R.otroDia.n === 1 ? "venta" : "ventas")) + (R.otroDia.n ? " · " + R.otroDia.n + " de otro día" : "")) +
-      kp("naranja", "💰", "Total del turno", "Bs " + fmt(r2(R.totalBs + R.otroDia.totalBs)), "$" + fmt(r2(R.totalUsd + R.otroDia.totalUsd)) + " BCV");
+      kp("naranja", "💰", "Total del turno", "Bs " + fmt(r2(R.totalBs + R.otroDia.totalBs)), "$" + fmt(r2(R.totalUsd + R.otroDia.totalUsd)) + " BCV", true);
   } else h += kp("gris", "🔒", "Turno", "Sin turno", "abre un turno para vender");
-  h += kp("teal", "📅", "Hoy", "Bs " + fmt(sumBs), deHoy.length + (deHoy.length === 1 ? " venta" : " ventas") + " · $" + fmt(sumUsd) + " BCV") +
+  h += kp("teal", "📅", "Hoy", "Bs " + fmt(sumBs), "$" + fmt(sumUsd) + " BCV", true, deHoy.length + (deHoy.length === 1 ? " venta" : " ventas")) +
     kp(c.por ? "azul" : "gris", c.por ? "⏳" : "☁️", "Por subir", String(c.por), c.por ? "se suben solas con internet" : "todo está en el sistema") +
     kp(c.mal ? "rojo" : "gris", c.mal ? "⚠️" : "✅", "Con problema", String(c.mal), c.mal ? "revísalas abajo" : "ninguna");
   $("resumen").innerHTML = h;

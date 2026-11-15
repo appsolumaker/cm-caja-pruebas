@@ -207,6 +207,7 @@ async function turnoDelSistema(r){
   if (mio && (!S.turno || S.turno.id === t.id) && t.equipo !== r.equipo) {   // el mismo cajero: sigue su turno en este equipo
     let a = null;
     try { a = await api("cj_turno", { op: "adoptar", id: t.id }, 30000); } catch (e) { a = null; }
+    if (!(a && a.ok && a.turno) && !(a && a.codigo === "CERRADO")) a = { ok: true, turno: t };   // 5.0p: es su turno: sigue en él aunque el sistema no lo haya anotado (los dos equipos venden)
     if (a && a.ok && a.turno) {
       const x = a.turno;
       S.turno = Object.assign({}, S.turno || {}, { id: x.id, cajeroId: x.cajeroId, cajeroNombre: x.cajeroNombre, apertura: x.apertura, aperturaMs: x.aperturaMs,
@@ -215,7 +216,7 @@ async function turnoDelSistema(r){
       S.turnoOtro = "";
       await kvSet("turno", S.turno);
       toast("✅ Estás en tu turno de la Caja " + r.caja);
-    } else if (a && a.msg) aviso({ icono: "🧾", titulo: "No se pudo seguir el turno", html: esc(a.msg) });
+    } else if (a && a.msg) aviso({ icono: "🔒", titulo: "Ese turno ya se cerró", html: esc(a.msg) + " Para vender, abre un turno nuevo." });
     return;
   }
   if (mio && S.turno && S.turno.id === t.id) return;   // ya era de este equipo

@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0o · 15-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0p · 15-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -3076,7 +3076,8 @@ function htmlCierre(c){
 // ══ SUBIR LAS VENTAS AL SISTEMA ══
 function datosParaSubir(v){
   return { id: v.id, numero: v.numero, creada: v.creada, fecha: v.fecha, tasas: v.tasas, items: v.items, pago: v.pago,
-           numeroFactura: v.numeroTicket || 0, turno: v.turno || "", caja: Number(v.caja) || 0 };   // S2: la caja donde se vendió
+           numeroFactura: v.numeroTicket || 0, turno: v.turno || "", caja: Number(v.caja) || 0,   // S2: la caja donde se vendió
+           total: v.total, totalBs: v.totalBs, totalBcv: v.totalBcv, unidad: v.unidad, modo: v.modo, fechaAnt: !!v.fechaAnt };   // 5.0p: los totales, para los otros equipos del turno
 }
 async function sincronizar(manual){
   if (!S.eq || !S.datos || S.sincronizando) return { subidas: 0 };
@@ -3209,7 +3210,18 @@ let _otPidiendo = false;
 function otrasDe(tid){   // sin las de este equipo (cuando una de aquí sube, también llega del sistema)
   if (!tid || OT.tid !== tid) return [];
   const mias = {}; S.ventas.forEach(v => { mias[v.id] = true; });
-  return (OT.ventas || []).filter(v => v && v.id && !mias[v.id]).map(v => Object.assign(v, { _otro: true, estado: "subida" }));
+  return (OT.ventas || []).filter(v => v && v.id && !mias[v.id]).map(v => Object.assign(otraConTotales(v), { _otro: true, estado: "subida" }));
+}
+// 5.0p: las ventas que subieron antes de la 5.0p no traen sus totales: se sacan de lo que sí traen (como en la caja que las hizo)
+function otraConTotales(v){
+  if (v.totalBs != null && v.total != null) return v;
+  const p = v.pago || {}, t = v.tasas || {}, bcv = Number(t.bcv) || 0, div = p.objetivoVenta === "DIVISAS", dl = Number(p.delivery) || 0;
+  let total = Number(p.totalPantallaUSD);
+  if (!(total > 0)) total = totales((v.items || []).map(i => ({ cantidad: i.cantidad, base: i.pu != null ? i.pu : i.precio, iva: i.iva })), { tipo: p.descuentoTipo || "ninguno", valor: Number(p.descuentoValor) || 0 }).total + dl;
+  const bsU = div ? (Number(t.div) > 0 ? Number(t.div) : bcv) : bcv;
+  v.total = r2(total); v.totalBs = r2((total - dl) * bsU + dl * bcv); v.totalBcv = div ? (bcv > 0 ? r2(v.totalBs / bcv) : 0) : v.total;
+  v.unidad = div ? "div" : "BCV"; v.modo = div ? "div" : (t.binOn ? "bcv" : "off"); v.fechaAnt = !!p.fechaAnterior;
+  return v;
 }
 function cjmDe(tid){
   if (!tid || OT.tid !== tid) return [];
@@ -3265,9 +3277,9 @@ function pintarVentas(){
   if (tu) {
     const nOtras = otrasT.filter(v => !v.fechaAnt).length;
     h += kp("verde", "👤", "Turno abierto", esc(tu.cajeroNombre), desde) +
-      kp("azul", "💵", "Fondo inicial", "Bs " + fmt(fi.bs), "$" + fmt(fi.usd)) +
-      kp("morado", "🧾", "Ventas del turno", String(R.ventas), nOtras ? nOtras + " en otro equipo" : (R.ventas === 1 ? "venta" : "ventas")) +
-      kp("naranja", "💰", "Total del turno", "Bs " + fmt(R.totalBs), "$" + fmt(R.totalUsd) + " BCV");
+      kp("azul", "💵", "Fondo inicial", '<div class="vk-fila"><span>Efectivo Bs</span><b>Bs ' + fmt(fi.bs) + '</b></div><div class="vk-fila"><span>Efectivo $</span><b>$' + fmt(fi.usd) + "</b></div>", "") +
+      kp("morado", "🧾", "Ventas del turno", String(R.ventas + R.otroDia.n), (nOtras ? nOtras + " en otro equipo" : (R.ventas + R.otroDia.n === 1 ? "venta" : "ventas")) + (R.otroDia.n ? " · " + R.otroDia.n + " de otro día" : "")) +
+      kp("naranja", "💰", "Total del turno", "Bs " + fmt(r2(R.totalBs + R.otroDia.totalBs)), "$" + fmt(r2(R.totalUsd + R.otroDia.totalUsd)) + " BCV");
   } else h += kp("gris", "🔒", "Turno", "Sin turno", "abre un turno para vender");
   h += kp("teal", "📅", "Hoy", "Bs " + fmt(sumBs), deHoy.length + (deHoy.length === 1 ? " venta" : " ventas") + " · $" + fmt(sumUsd) + " BCV") +
     kp(c.por ? "azul" : "gris", c.por ? "⏳" : "☁️", "Por subir", String(c.por), c.por ? "se suben solas con internet" : "todo está en el sistema") +

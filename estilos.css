@@ -17,10 +17,10 @@
   --sk-mid:#e3b341;--sk-mid-bg:rgba(227,179,65,0.18);
 }
 body.light{
-  --bg:#eef1f5;--bg2:#ffffff;--bg3:#e0e5ec;--bg4:#d5dce5;
-  --green:#00a855;--green-dim:rgba(0,168,85,0.12);
-  --border:rgba(0,0,0,0.11);--border-g:rgba(0,160,90,0.40);
-  --text:#1a1d23;--text-dim:#5a6878;
+  --bg:#edeae5;--bg2:#f5f2ee;--bg3:#e3dfd8;--bg4:#d8d3cb;   /* 5.0o: los mismos colores del sistema en el tema claro */
+  --green:#00a855;--green-dim:rgba(0,168,85,0.13);
+  --border:rgba(0,0,0,0.10);--border-g:rgba(0,168,85,0.38);
+  --text:#221f1a;--text-dim:#6b6560;
   --btn-txt:#ffffff;
   --red:#b42323;--red-dim:rgba(200,50,50,0.12);
   --amber:#8a5d00;--amber-dim:rgba(180,120,0,0.14);
@@ -759,9 +759,34 @@ body:not(.v-vender) #btnOrdenes{display:none;}
 .res > .rc b{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;}
 .res > .rc::after{width:70px;height:70px;right:-24px;top:-24px;}
 .rc-tx{position:relative;z-index:1;}
-#vVentas .card{background:var(--bg2);border-radius:14px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.06);}
-#vVentas .card-tit{font-size:13px;color:var(--text);letter-spacing:.02em;margin-bottom:10px;}
+/* 5.0o: «Ventas de la caja» con el estilo del sistema: tarjetas de color con texto blanco y secciones con su título en verde */
+#vVentas .res{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+.res > .vk-card{position:relative;border:none;border-radius:14px;padding:15px 16px 14px;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,0.14);min-width:0;}
+.res > .vk-card.vk-verde{background:linear-gradient(135deg,#0f9d58,#0a7a43);}
+.res > .vk-card.vk-azul{background:linear-gradient(135deg,#2f6fe4,#1f4fb8);}
+.res > .vk-card.vk-morado{background:linear-gradient(135deg,#7c4ddb,#5b2fb4);}
+.res > .vk-card.vk-naranja{background:linear-gradient(135deg,#e07a12,#b45309);}
+.res > .vk-card.vk-teal{background:linear-gradient(135deg,#0e9aa7,#0b6f78);}
+.res > .vk-card.vk-rojo{background:linear-gradient(135deg,#e04848,#b3262e);}
+.res > .vk-card.vk-gris{background:linear-gradient(135deg,#7b8794,#5a6470);}
+.vk-tit{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;opacity:0.92;padding-right:38px;}
+.vk-ico{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:16px;}
+.vk-val{font-size:22px;font-weight:900;line-height:1.15;margin-top:10px;letter-spacing:-0.3px;word-break:break-word;}
+.vk-sub{font-size:12px;font-weight:600;opacity:0.92;margin-top:4px;}
+#vVentas .card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:0 0 12px;margin-bottom:12px;overflow:hidden;box-shadow:none;}
+#vVentas .card-tit{background:var(--green-dim);color:var(--green);border-bottom:1px solid var(--border-g);padding:10px 14px;margin:0 0 10px;font-size:13.5px;font-weight:800;text-transform:none;letter-spacing:0;}
+#vVentas .card-tit small{font-size:12px;font-weight:600;color:var(--text-dim);}
+#vVentas .card > *:not(.card-tit){margin-left:14px!important;margin-right:14px!important;}
+#vVentas .card > table{width:calc(100% - 28px);}
 #vVentas .cie-tabla td{padding:8px 4px;}
+#vVentas .rc-met{background:var(--bg2);}
+#vVentas .vt-item{background:var(--bg3);}
+#vVentas .vt-cab .n{font-size:14px;}
+/* 5.0o: 🔄 Actualizar en la barra de arriba */
+.btn-act-top span{display:inline-block;}
+.btn-act-top.girando span{animation:girar 0.8s linear infinite;}
+.btn-act-top:disabled{cursor:default;opacity:0.8;}
+@keyframes girar{to{transform:rotate(360deg);}}
 
 /* ══ 3.9 · Activar el equipo en dos pasos ══ */
 .ac-preg{margin:14px 0 12px;}

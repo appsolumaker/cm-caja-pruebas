@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0n · 15-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0o · 15-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -79,7 +79,7 @@ const S = {
   permisoMal: "",    // texto si el sistema dijo que este equipo no tiene permiso
   datosMal: "",      // texto si el sistema no pudo dar los datos
   tasaOkHoy: "",     // fecha en que el cajero confirmó la tasa vieja
-  filtro: "hoy",
+  filtro: "turno",   // 5.0o: lo del turno abierto (sin turno: hoy)
   vista: "vender"
 };
 const F = nuevaFactura();   // la venta que se está armando
@@ -3243,57 +3243,75 @@ async function otrasAlDia(maxEdad){
 function diaDe(v){ return String(v.creada || v.fecha || "").slice(0, 10); }   // el día en que se hizo la venta en el equipo
 function filtrarVentas(f){ S.filtro = f; document.querySelectorAll("#filtros button").forEach(b => b.classList.toggle("on", b.dataset.f === f)); pintarVentas(); }
 function estadoHTML(v){
-  if (v.estado === "subida") return (v.avisos && v.avisos.length) ? '<span class="est av">⚠️ En el sistema #' + esc(v.numeroFactura) + " · con avisos</span>" : '<span class="est sub">✅ En el sistema #' + esc(v.numeroFactura) + "</span>";
+  if (v.estado === "subida") return (v.avisos && v.avisos.length) ? '<span class="est av">⚠️ Factura #' + esc(v.numeroFactura) + " · con avisos</span>" : '<span class="est sub">✅ Factura #' + esc(v.numeroFactura) + "</span>";   // 5.0o
   if (v.estado === "por_subir") return '<span class="est por">⏳ Por subir</span>';
   return '<span class="est mal">❌ No se registró</span>';
 }
 function pintarVentas(){
+  // 5.0o: tarjetas y secciones con el estilo del sistema; lo del TURNO (también los días anteriores y los otros equipos) y lo de hoy
   const hoy = hoyTxt();
-  const otrasT = S.turno ? otrasDe(S.turno.id) : [];   // 5.0m: las del turno hechas en los otros equipos de esta caja
+  const tu = S.turno, otrasT = tu ? otrasDe(tu.id) : [];   // 5.0m: las del turno hechas en los otros equipos de esta caja
+  if (S.filtro === "turno" && !tu) S.filtro = "hoy";
+  document.querySelectorAll("#filtros button").forEach(b => { b.classList.toggle("on", b.dataset.f === S.filtro); if (b.dataset.f === "turno") b.classList.toggle("oculto", !tu); });
   const deHoy = S.ventas.filter(v => diaDe(v) === hoy).concat(otrasT.filter(v => diaDe(v) === hoy));   // Tanda 1: lo hecho hoy (también las ventas de otro día)
   const bcvDe = v => v.totalBcv != null ? Number(v.totalBcv) || 0 : Number(v.total) || 0;   // en $ BCV (una Venta en Dólares, pasada con sus tasas)
   const sumBs = deHoy.reduce((s, v) => s + (Number(v.totalBs) || 0), 0), sumUsd = deHoy.reduce((s, v) => s + bcvDe(v), 0);
   const c = cuentas();
-  // Por método (hoy): lo cobrado menos el vuelto
-  const porMet = {};
-  deHoy.forEach(v => {
-    (v.pago.pagos || []).forEach(p => { const k = p.metodo + "|" + p.tipo; porMet[k] = (porMet[k] || 0) + (Number(p.monto) || 0); });
-    (v.pago.vuelto || []).forEach(p => { const k = p.metodo + "|" + p.tipo; porMet[k] = (porMet[k] || 0) - (Number(p.monto) || 0); });
-  });
-  const tu = S.turno;   // 1b: con cuánto abrió el turno y quién
-  const fi = tu ? (tu.fondoContado || { bs: tu.fondoBs, usd: tu.fondoUsd }) : null;   // 3.6: lo que había en la gaveta al abrir
-  // 3.7: tarjetas con ícono y color
-  const tj = (cls, ico, lbl, val, sub) => '<div class="rc ' + cls + '"><div class="rc-ico">' + ico + '</div><div class="rc-tx"><span class="rc-lbl">' + lbl + "</span>" + val + (sub ? '<span class="rc-sub">' + sub + "</span>" : "") + "</div></div>";
-  let h = (tu ? tj("rc-verde", "👤", "Turno abierto", "<b>" + esc(tu.cajeroNombre) + "</b>", "desde las " + horaDe(tu.apertura)) +
-      tj("rc-verde rc-fondo", "💵", "Fondo inicial de la caja", '<b>Bs ' + fmt(fi.bs) + '</b><b class="rc-b2">$' + fmt(fi.usd) + "</b>") : "") +
-    tj("rc-morado", "🧾", "Ventas de hoy", "<b>" + deHoy.length + "</b>", (deHoy.length === 1 ? "venta" : "ventas") + (otrasT.length ? " · " + otrasEnHoy(deHoy) : "")) +
-    tj("rc-ambar", "💰", "Total de hoy", "<b>Bs " + fmt(sumBs) + "</b>", "$" + fmt(sumUsd) + " BCV") +
-    tj(c.por ? "rc-azul" : "rc-gris", c.por ? "⏳" : "☁️", "Por subir", "<b>" + c.por + "</b>", c.por ? "se suben solas con internet" : "todo está en el sistema") +
-    tj(c.mal ? "rc-rojo" : "rc-gris", c.mal ? "⚠️" : "✅", "Con problema", "<b>" + c.mal + "</b>", c.mal ? "revísalas abajo" : "ninguna");
-  const mets = Object.keys(porMet);
-  if (mets.length) h += '<div class="rc-mets"><div class="rc-mets-tit">💳 Hoy por método <small>(lo cobrado menos el vuelto)</small></div><div class="rc-mets-l">' +
-    mets.map(k => { const [m, t] = k.split("|"); return '<div class="rc-met ' + (t === "BS" ? "bs" : t === "USD" ? "usd" : "otro") + '"><span>' + esc(m) + "</span><b>" + (t === "BS" ? "Bs " : "$") + fmt(porMet[k]) + "</b></div>"; }).join("") + "</div></div>";
+  const R = tu ? resumenTurno(tu) : null;
+  const fi = tu ? (tu.fondoContado || { bs: tu.fondoBs, usd: tu.fondoUsd }) : null;   // 3.6: lo que había en la caja al abrir
+  const desde = tu ? (String(tu.apertura).slice(0, 10) === hoy ? "desde las " + horaDe(tu.apertura) : "desde el " + fechaCorta(tu.apertura) + " " + horaDe(tu.apertura)) : "";
+  const kp = (color, ico, tit, val, sub) => '<div class="vk-card vk-' + color + '"><div class="vk-tit">' + tit + '</div><div class="vk-ico">' + ico + '</div><div class="vk-val">' + val + "</div>" + (sub ? '<div class="vk-sub">' + sub + "</div>" : "") + "</div>";
+  let h = "";
+  if (tu) {
+    const nOtras = otrasT.filter(v => !v.fechaAnt).length;
+    h += kp("verde", "👤", "Turno abierto", esc(tu.cajeroNombre), desde) +
+      kp("azul", "💵", "Fondo inicial", "Bs " + fmt(fi.bs), "$" + fmt(fi.usd)) +
+      kp("morado", "🧾", "Ventas del turno", String(R.ventas), nOtras ? nOtras + " en otro equipo" : (R.ventas === 1 ? "venta" : "ventas")) +
+      kp("naranja", "💰", "Total del turno", "Bs " + fmt(R.totalBs), "$" + fmt(R.totalUsd) + " BCV");
+  } else h += kp("gris", "🔒", "Turno", "Sin turno", "abre un turno para vender");
+  h += kp("teal", "📅", "Hoy", "Bs " + fmt(sumBs), deHoy.length + (deHoy.length === 1 ? " venta" : " ventas") + " · $" + fmt(sumUsd) + " BCV") +
+    kp(c.por ? "azul" : "gris", c.por ? "⏳" : "☁️", "Por subir", String(c.por), c.por ? "se suben solas con internet" : "todo está en el sistema") +
+    kp(c.mal ? "rojo" : "gris", c.mal ? "⚠️" : "✅", "Con problema", String(c.mal), c.mal ? "revísalas abajo" : "ninguna");
   $("resumen").innerHTML = h;
-  // Por cajero (hoy)
+  // Por método: lo del turno (o lo de hoy, sin turno) — lo cobrado menos el vuelto
+  let mets = [];
+  if (R) mets = R.metodos.filter(m => Math.abs(m.neto) >= 0.005).map(m => ({ m: m.metodo, t: m.tipo, v: m.neto }));
+  else {
+    const porMet = {};
+    deHoy.forEach(v => {
+      (v.pago.pagos || []).forEach(p => { const k = p.metodo + "|" + p.tipo; porMet[k] = (porMet[k] || 0) + (Number(p.monto) || 0); });
+      (v.pago.vuelto || []).forEach(p => { const k = p.metodo + "|" + p.tipo; porMet[k] = (porMet[k] || 0) - (Number(p.monto) || 0); });
+    });
+    mets = Object.keys(porMet).map(k => { const [m, t] = k.split("|"); return { m: m, t: t, v: porMet[k] }; });
+  }
+  const sec = (ico, tit, sub, cuerpo) => '<div class="card"><div class="card-tit">' + ico + " " + tit + (sub ? " <small>" + sub + "</small>" : "") + "</div>" + cuerpo + "</div>";
+  let p2 = trabadosHTML();
+  if (mets.length) p2 += sec("💳", "Por método", (R ? "este turno" : "hoy") + " · lo cobrado menos el vuelto", '<div class="rc-mets-l">' +
+    mets.map(x => '<div class="rc-met ' + (x.t === "BS" ? "bs" : x.t === "USD" ? "usd" : "otro") + '"><span>' + esc(x.m) + "</span><b>" + (x.t === "BS" ? "Bs " : "$") + fmt(x.v) + "</b></div>").join("") + "</div>");
+  p2 += gvHTMLVentas();   // 3.3: el efectivo sacado o ajustado en el turno
+  // Por cajero: solo si en el turno (o hoy) vendió más de uno
+  const base = tu ? S.ventas.filter(v => v.turno === tu.id && v.estado !== "invalida" && !v.fechaAnt).concat(otrasT.filter(v => !v.fechaAnt)) : deHoy;
   const porCj = {};
-  deHoy.forEach(v => { const k = v.pago.cajeroNombre || "Sin cajero"; const x = porCj[k] = porCj[k] || { n: 0, bs: 0, usd: 0 }; x.n++; x.bs += Number(v.totalBs) || 0; x.usd += bcvDe(v); });
+  base.forEach(v => { const k = v.pago.cajeroNombre || "Sin cajero"; const x = porCj[k] = porCj[k] || { n: 0, bs: 0, usd: 0 }; x.n++; x.bs += Number(v.totalBs) || 0; x.usd += bcvDe(v); });
   const cjs = Object.keys(porCj);
-  $("porCajero").innerHTML = trabadosHTML() + gvHTMLVentas() + (cjs.length ? '<div class="card" style="margin-bottom:10px;"><div class="card-tit">🧾 Hoy por cajero</div><table class="cie-tabla">' +
-    cjs.map(k => "<tr><td><b>" + esc(k) + "</b> · " + porCj[k].n + " venta" + (porCj[k].n === 1 ? "" : "s") + '</td><td class="r">Bs ' + fmt(porCj[k].bs) + ' <span style="color:var(--text-dim);font-weight:600;">· $' + fmt(porCj[k].usd) + "</span></td></tr>").join("") + "</table></div>" : "");   // 3.3: antes, lo de la gaveta del turno abierto
+  if (cjs.length > 1) p2 += sec("🧾", "Por cajero", tu ? "este turno" : "hoy", '<table class="cie-tabla">' +
+    cjs.map(k => "<tr><td><b>" + esc(k) + "</b> · " + porCj[k].n + " venta" + (porCj[k].n === 1 ? "" : "s") + '</td><td class="r">Bs ' + fmt(porCj[k].bs) + ' <span style="color:var(--text-dim);font-weight:600;">· $' + fmt(porCj[k].usd) + "</span></td></tr>").join("") + "</table>");
+  $("porCajero").innerHTML = p2;
   // Turnos
   const tl = S.cierres.slice().reverse().slice(0, 20);
   let th = "";
-  if (S.turno) { const R = resumenTurno(S.turno); th += '<tr><td>🟢 <b>' + esc(S.turno.cajeroNombre) + "</b> · abierto desde " + fechaCorta(S.turno.apertura) + " " + horaDe(S.turno.apertura) + " · " + R.ventas + ' ventas</td><td class="r">Bs ' + fmt(R.totalBs) + "</td></tr>"; }
+  if (tu) th += '<tr><td>🟢 <b>' + esc(tu.cajeroNombre) + "</b> · abierto " + desde + " · " + R.ventas + ' ventas</td><td class="r">Bs ' + fmt(R.totalBs) + "</td></tr>";
   tl.forEach((c, k) => {
     const dif = (Math.abs(c.efBsDif) < 0.005 && Math.abs(c.efUsdDif) < 0.005) ? '<span class="dif-ok">cuadra</span>' : '<span class="dif-mal">dif. Bs ' + fmt(c.efBsDif) + " · $" + fmt(c.efUsdDif) + "</span>";
     th += "<tr><td>🔒 <b>" + esc(c.cajeroNombre) + "</b> · " + fechaCorta(c.apertura) + " " + horaDe(c.apertura) + "–" + horaDe(c.cierre) + " · " + c.ventas + " ventas · " + dif +
       (c.estado === "subido" ? "" : ' · <span style="color:' + (trabado(c, "cierre") ? "var(--red)" : "var(--blue)") + ';">⏳ por subir' + (c.msg ? " · " + esc(c.msg) : "") + "</span>") + '</td><td class="r">Bs ' + fmt(c.totalBs) +
       ' <button type="button" class="btn sm" onclick="imprimirCierreN(' + (S.cierres.length - 1 - k) + ')">🖨️</button></td></tr>';
   });
-  $("turnosLista").innerHTML = th ? '<div class="card" style="margin-bottom:10px;"><div class="card-tit">🔒 Turnos</div><table class="cie-tabla">' + th + "</table></div>" : "";
+  $("turnosLista").innerHTML = th ? sec("🔒", "Turnos", "", '<table class="cie-tabla">' + th + "</table>") : "";
   $("btnSubir").classList.toggle("oculto", !c.por && !c.mal);
   let lst = S.ventas.concat(otrasT).sort((a, b) => String(b.creada).localeCompare(String(a.creada)));
-  if (S.filtro === "hoy") lst = lst.filter(v => diaDe(v) === hoy);
+  if (S.filtro === "turno") lst = lst.filter(v => v.turno === tu.id);
+  else if (S.filtro === "hoy") lst = lst.filter(v => diaDe(v) === hoy);
   else if (S.filtro === "por") lst = lst.filter(v => v.estado === "por_subir");
   else if (S.filtro === "mal") lst = lst.filter(v => v.estado === "pendiente" || v.estado === "invalida");
   else if (S.filtro === "av") lst = lst.filter(v => v.estado === "subida" && v.avisos && v.avisos.length);
@@ -3356,6 +3374,12 @@ async function guardarPref(){
   S.pref.dosCopias = $("chkDosCopias").checked; S.pref.claro = $("chkClaro").checked; S.pref.tamTicket = $("selTamTicket").value; S.pref.tasaOculta = $("chkTasaOculta").checked;
   aplicarTema(); pintarTasa();
   try { await kvSet("pref", S.pref); toast("✅ Cambios guardados"); } catch (e) {}
+}
+// 5.0o: 🔄 en la barra de arriba: tasas, precios, existencias y las ventas de los otros equipos del turno
+async function actualizarTop(btn){
+  if (!btn || btn.disabled) return;
+  btn.disabled = true; btn.classList.add("girando");
+  try { await actualizarDatos(null, false); } finally { btn.disabled = false; btn.classList.remove("girando"); }
 }
 function aplicarTema(){
   document.body.classList.toggle("light", !!S.pref.claro);

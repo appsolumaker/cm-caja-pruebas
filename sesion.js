@@ -201,17 +201,20 @@ async function turnoDelSistema(r){
     aviso({ icono: "🔒", titulo: "Tu turno ya se cerró", html: "El turno de <b>" + esc(loc.cajeroNombre) + "</b> que estaba abierto en este equipo se cerró desde otro equipo (por ejemplo, el administrador). Para vender, abre un turno nuevo." });
   }
   if (!t) return;
-  const mio = String(t.cajeroId || "").toLowerCase() === yo && yo;
+  const u0 = (S.ses && S.ses.usuario) || {}, nomT = String(t.cajeroNombre || "").trim().toLowerCase();
+  const mio = yo && (String(t.cajeroId || "").toLowerCase() === yo ||   // 5.0m: un turno viejo sin usuario anotado: por el nombre
+    (!t.cajeroId && nomT && (nomT === yo || nomT === String(u0.nombre || "").trim().toLowerCase())));
   if (mio && (!S.turno || S.turno.id === t.id) && t.equipo !== r.equipo) {   // el mismo cajero: sigue su turno en este equipo
     let a = null;
     try { a = await api("cj_turno", { op: "adoptar", id: t.id }, 30000); } catch (e) { a = null; }
     if (a && a.ok && a.turno) {
       const x = a.turno;
       S.turno = Object.assign({}, S.turno || {}, { id: x.id, cajeroId: x.cajeroId, cajeroNombre: x.cajeroNombre, apertura: x.apertura, aperturaMs: x.aperturaMs,
-        fondoBs: x.fondoBs, fondoUsd: x.fondoUsd, avisado: true, adoptado: !S.turno });
+        fondoBs: x.fondoBs, fondoUsd: x.fondoUsd, avisado: true, adoptado: !S.turno || !!S.turno.invitado });
+      delete S.turno.invitado; delete S.turno.de; delete S.turno.cierraAdmin;   // 5.0m: es su turno (no vende como invitado)
       S.turnoOtro = "";
       await kvSet("turno", S.turno);
-      toast("✅ Sigues tu turno en este equipo");
+      toast("✅ Estás en tu turno de la Caja " + r.caja);
     } else if (a && a.msg) aviso({ icono: "🧾", titulo: "No se pudo seguir el turno", html: esc(a.msg) });
     return;
   }

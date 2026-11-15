@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.0m · 15-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.0n · 15-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -2761,7 +2761,7 @@ const CIE_PASOS = [["1", "Efectivo Bs"], ["2", "Efectivo $"], ["3", "Revisar"], 
 async function irCierre(){
   if (!S.turno) return;
   if (F.items.length || P) { aviso({ icono: "🧾", titulo: "Hay una venta a medias", html: "Termina la venta (o vacíala con 🗑️) antes de cerrar el turno." }); return; }
-  if (S.eq && S.eq.auto && !(await cierreDelSistema())) return;   // 5.0l · Tanda 3B-2
+  if (cajaConSistema() && !(await cierreDelSistema())) return;   // 5.0l · Tanda 3B-2 (5.0n: también un equipo activado de antes)
   if (CIE.tid !== S.turno.id) Object.assign(CIE, { paso: 1, bs: "", usd: "", obs: "", qBs: "", qUsd: "", hora: "", tid: S.turno.id });
   else if (CIE.paso > 3) CIE.paso = 3;   // 1b: volvió a cerrar (p. ej. registró la venta que faltaba): lo contado se queda y se revisa otra vez
   CIE.sis = null;
@@ -3202,6 +3202,9 @@ async function reintentar(id, btn){
 //  el administrador puede vender en la caja de un cajero. Cada equipo trae del sistema lo que se registró en los otros
 //  (al abrir Ventas, al tocar 🔄 Actualizar datos y cada pocos minutos) y lo suma en Ventas y en el turno.
 let OT = { tid: "", ventas: [], cjm: [], en: 0 };
+// 5.0n: el sistema ya tiene las cajas por usuario (acceso «sistema»): también un equipo activado de antes (que sigue con
+// su turno abierto) trae lo de los otros equipos y cierra con lo que está en el sistema
+function cajaConSistema(){ return !!(S.eq && (S.eq.auto || S.acceso === "sistema")); }
 let _otPidiendo = false;
 function otrasDe(tid){   // sin las de este equipo (cuando una de aquí sube, también llega del sistema)
   if (!tid || OT.tid !== tid) return [];
@@ -3221,7 +3224,7 @@ async function otrasGuardar(tid, r){
 // maxEdad: si lo que hay es más nuevo que esto (ms), no se vuelve a pedir (0 = pedirlo ya)
 async function otrasAlDia(maxEdad){
   const t = S.turno;
-  if (!t || !S.eq || !S.eq.auto || _otPidiendo || !hayInternet()) return;
+  if (!t || !cajaConSistema() || _otPidiendo || !hayInternet()) return;
   if (maxEdad && OT.tid === t.id && Date.now() - OT.en < maxEdad) return;
   _otPidiendo = true;
   try {

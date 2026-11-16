@@ -17,10 +17,10 @@
   --sk-mid:#e3b341;--sk-mid-bg:rgba(227,179,65,0.18);
 }
 body.light{
-  --bg:#edeae5;--bg2:#f5f2ee;--bg3:#e3dfd8;--bg4:#d8d3cb;   /* 5.0o: los mismos colores del sistema en el tema claro */
-  --green:#00a855;--green-dim:rgba(0,168,85,0.13);
-  --border:rgba(0,0,0,0.10);--border-g:rgba(0,168,85,0.38);
-  --text:#221f1a;--text-dim:#6b6560;
+  --bg:#eef1f5;--bg2:#ffffff;--bg3:#e0e5ec;--bg4:#d5dce5;   /* 5.0t: vuelven los colores claros de la caja 4.9 (los prefiere Jesús) */
+  --green:#00a855;--green-dim:rgba(0,168,85,0.12);
+  --border:rgba(0,0,0,0.11);--border-g:rgba(0,160,90,0.40);
+  --text:#1a1d23;--text-dim:#5a6878;
   --btn-txt:#ffffff;
   --red:#b42323;--red-dim:rgba(200,50,50,0.12);
   --amber:#8a5d00;--amber-dim:rgba(180,120,0,0.14);

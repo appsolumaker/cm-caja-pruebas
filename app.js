@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.1 · 17-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.1a · 17-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -566,6 +566,7 @@ function lugarHTML(i, p){
 }
 function cambiarLugar(key, lugar){
   const i = itemDe(key); if (!i || lugarDe(i) === lugar) return;
+  if (ordBloqueada()) { ordDesbloquear("cambiar de dónde sale la mercancía (tienda o depósito)"); return; }   // 5.1
   i.lugar = lugar === "deposito" ? "deposito" : "tienda";
   delete F.avisoEx[String(i.codigo) + "|" + i.lugar];
   pintarFactura();
@@ -1181,13 +1182,20 @@ async function claveFactura(titulo, para){
 // ── Descuento (en Ajustes, como en Ventas): Ninguno · Porcentaje · Monto ──
 async function cambiarTipoDesc(sel){
   const v = sel.value;
+  if (ordBloqueada()) { sel.value = F.desc.tipo; if (!await ordPuedeCambiar("poner un descuento")) return; sel.value = v; }   // 5.1 · orden bloqueada
   if (v !== "ninguno" && S.datos.pideClave && S.datos.pideClave.descuento && !await claveFactura("Descuento", "para hacer un descuento")) { sel.value = F.desc.tipo; return; }
   F.desc = { tipo: v, valor: v === F.desc.tipo ? F.desc.valor : 0 };
   pintarSelectores(); pintarTotales();
   if (v !== "ninguno") setTimeout(() => $("valorDescuento").focus(), 30);
 }
-function cambiarValorDesc(val){ F.desc.valor = Math.max(0, Number(val) || 0); pintarTotales(); }
-function quitarDescuento(){ F.desc = { tipo: "ninguno", valor: 0 }; pintarSelectores(); pintarTotales(); }
+function cambiarValorDesc(val){
+  if (ordBloqueada()) { $("valorDescuento").value = F.desc.valor > 0 ? F.desc.valor : ""; ordDesbloquear("cambiar el descuento"); return; }   // 5.1
+  F.desc.valor = Math.max(0, Number(val) || 0); pintarTotales();
+}
+async function quitarDescuento(){
+  if (ordBloqueada() && !await ordPuedeCambiar("quitar el descuento")) return;   // 5.1
+  F.desc = { tipo: "ninguno", valor: 0 }; pintarSelectores(); pintarTotales();
+}
 // ══ VENTA DE OTRO DÍA (Tanda 1, 3.1) — como Ventas (TasasVenta.gs) ══
 //  Para registrar una venta que se olvidó: va con su fecha y las tasas de ESE día (así no queda diferencial cambiario).
 //  Se toca la fecha de la factura. Pide la misma clave que «Cambiar tasa» si Configuración la pide (N4). Con internet trae
@@ -1202,6 +1210,7 @@ function textoTasasFA(fa){
 }
 async function abrirFechaVenta(){
   if (!S.datos || P || !puedeVender()) return;
+  if (ordBloqueada() && !await ordPuedeCambiar("cambiar la fecha de la venta")) return;   // 5.1 · orden bloqueada
   if (F.fechaAnt) {
     const r = await modal({ icono: "📅", titulo: "Venta de otro día", html: '<div class="m-txt">Esta venta lleva fecha del <b>' + fechaCorta(F.fechaAnt.fecha) + "</b> con las tasas de ese día: " + textoTasasFA() + ".</div>",
       botones: [{ txt: "Cancelar", v: false }, { txt: "↩️ Volver a hoy", v: "hoy" }, { txt: "✏️ Cambiar día o tasas", v: "cambiar", cls: "green" }] });
@@ -1316,8 +1325,14 @@ function ponerFechaAnt(fa){
 function dlvMonto(){ return r2(Math.max(0, Number(F.dlv && F.dlv.monto) || 0)); }
 function dlvLibro(m){ m = r2(Math.max(0, Number(m) || 0)); return binOn() && tBcv() > 0 && tDiv() > 0 && Math.abs(tDiv() - tBcv()) > 0.000001 ? r2(m * tBcv() / tDiv()) : m; }
 function dlvTxt(t){ return (t || (F.dlv && F.dlv.tipo)) === "envio" ? "Envío" : "Delivery"; }
-function cambiarDelivery(v){ F.dlv.monto = Math.max(0, Number(v) || 0); pintarTotales(); }
-function cambiarTipoDelivery(v){ F.dlv.tipo = v === "envio" ? "envio" : "delivery"; pintarTotales(); }
+function cambiarDelivery(v){
+  if (ordBloqueada()) { $("valorDelivery").value = F.dlv.monto > 0 ? F.dlv.monto : ""; ordDesbloquear("poner o cambiar el delivery"); return; }   // 5.1
+  F.dlv.monto = Math.max(0, Number(v) || 0); pintarTotales();
+}
+async function cambiarTipoDelivery(v){
+  if (ordBloqueada()) { $("tipoDelivery").value = F.dlv.tipo; if (!await ordPuedeCambiar("cambiar el delivery o envío")) return; $("tipoDelivery").value = v; }   // 5.1
+  F.dlv.tipo = v === "envio" ? "envio" : "delivery"; pintarTotales();
+}
 // Total de la factura en pantalla con el delivery, y sus Bs (los productos a la tasa de la venta, el delivery a BCV)
 function totalConDlv(){ const x = totales(F.items, F.desc), d = dlvMonto(); return { prod: x.total, dlv: d, total: r2(x.total + d), bs: r2(x.total * bsPorU() + d * tBcv()) }; }
 
@@ -1329,7 +1344,15 @@ function clientesTodos(){
   return sis.concat((S.clientesNuevos || []).filter(c => !ya.has(cedNorm(c.cedula))).map(c => Object.assign({ local: true }, c)));
 }
 function clienteDe(ced){ const k = cedNorm(ced); return k ? clientesTodos().find(c => cedNorm(c.cedula) === k) || null : null; }
-function limpiarCliente(){ F.cliente = { cedula: "", nombre: "Genérico", direccion: "", telefono: "" }; pintarTotales(); }
+async function limpiarCliente(){
+  if (ordBloqueada() && !await ordPuedeCambiar("quitar el cliente")) return;   // 5.1 · orden bloqueada
+  F.cliente = { cedula: "", nombre: "Genérico", direccion: "", telefono: "" }; pintarTotales();
+}
+// 👤 Elegir de arriba de la factura (5.1: con la orden bloqueada pide la clave maestra; elegir cliente para cobrar a crédito no)
+async function elegirClienteBoton(){
+  if (ordBloqueada() && !await ordPuedeCambiar("cambiar el cliente")) return;
+  abrirClientes();
+}
 function ponerCliente(c){
   F.cliente = c ? { cedula: String(c.cedula || ""), nombre: c.nombre || "Genérico", direccion: c.direccion || "", telefono: c.telefono || "", nuevo: !!c.local } : { cedula: "", nombre: "Genérico", direccion: "", telefono: "" };
   pintarTotales();

@@ -9,8 +9,8 @@
 //    sin internet (o en modo vendedor) se guarda en este equipo y, en modo cajero, sube sola después.
 //  · 📄 Cotización: se imprime en carta, sin número y sin registrar nada.
 //  Sin internet no se traen órdenes nuevas, pero la que ya está en pantalla se cobra igual.
-//  · 🔒 5.1: una orden de vendedor o un pedido web cargado en la factura queda BLOQUEADO: para añadir, quitar o cambiar
-//    productos, cantidades o precios (y 💵 Venta en Dólares) hace falta la clave maestra, revisada en el sistema.
+//  · 🔒 5.1: una orden de vendedor o un pedido web cargado en la factura queda BLOQUEADO: para cambiar cualquier cosa
+//    (productos, cantidades, precios, descuento, delivery, cliente, fecha…) hace falta la clave maestra, revisada en el sistema.
 // ══════════════════════════════════════════════════════════════
 const ORD_REFRESCO_MS = 90000;
 const _ord = { lista: [], abiertas: 0, cerrar: null, timer: null, ocupado: false, error: "" };
@@ -441,9 +441,10 @@ async function ordDescartar(id, btn){
 }
 
 // ══ 🔒 ORDEN BLOQUEADA (5.1) ══
-//  Una orden de vendedor o un pedido web, cargado en la factura, no se puede cambiar sin la clave maestra:
-//  añadir o quitar productos, cantidades, tipo de precio, precio manual y 💵 Venta en Dólares. Sin clave sí se puede:
-//  cobrar, cliente, descuento (con su clave, como siempre), delivery, tienda/depósito, vendedor (con su clave), soltarla y ponerla en espera.
+//  Una orden de vendedor o un pedido web, cargado en la factura, no se puede cambiar sin la clave maestra: añadir o quitar
+//  productos, cantidades, tipo de precio, precio manual, 💵 Venta en Dólares, descuento, delivery, cliente (👤 Elegir y ✕),
+//  venta de otro día y tienda/depósito. Sin clave sí se puede: cobrarla tal cual (también elegir el cliente si el cobro a
+//  crédito lo pide), imprimir la cotización, soltarla y ponerla en espera. El vendedor sigue con su propia clave maestra.
 //  · La clave se pide UNA vez y desbloquea esa orden mientras esté en pantalla. Al soltarla o ponerla en espera y volver
 //    a cargarla, está bloqueada otra vez.
 //  · La revisa el sistema (cj_ordenes op «desbloquear», que la deja anotada en la orden). Sin internet no se desbloquea.
@@ -465,7 +466,7 @@ async function ordDesbloquear(que){
     }
     let res = null;
     const ok = await modal({ icono: "🔒", titulo: "Orden " + o.id + " bloqueada",
-      html: '<div class="m-txt">La orden ' + de + ". Para <b>" + esc(que || "cambiarla") + "</b> hace falta la <b>clave maestra</b>: así nadie cambia lo acordado con el cliente sin permiso del encargado." +
+      html: '<div class="m-txt">La orden ' + de + ". Para <b>" + esc(que || "cambiarla") + "</b> hace falta la <b>clave maestra</b>: así nadie cambia lo acordado con el cliente (productos, precios, descuento, delivery…) sin permiso del encargado." +
         "<br><br>La clave desbloquea <b>toda esta orden</b> mientras esté en pantalla. Si no hay que cambiar nada, toca <b>Cancelar</b> y cóbrala tal como está.</div>" +
         '<input class="inp" id="ordDesbClave" type="password" placeholder="Clave maestra" autocomplete="off" style="margin-top:10px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.closest(\'.modal\').querySelector(\'[data-v=ok]\').click();}"><div class="m-err" id="ordDesbErr"></div>',
       botones: [{ txt: "Cancelar", v: false }, { txt: "🔓 Desbloquear", v: true, cls: "green", spin: "Verificando…" }],
@@ -493,8 +494,8 @@ function pintarBandaBloqueo(){
   const b = $("bannerOrdBloq"); if (!b) return;
   const on = ordBloqueada();
   b.classList.toggle("oculto", !on);
-  b.innerHTML = !on ? "" : '<span class="ob-txt">🔒 <b>Orden ' + esc(F.orden.id) + " bloqueada.</b> Para añadir, quitar o cambiar productos, cantidades o precios hace falta la <b>clave maestra</b>.</span>" +
-    '<button type="button" class="btn sm" onclick="ordDesbloquear(\'cambiar productos, cantidades o precios\')">🔓 Desbloquear</button>';
+  b.innerHTML = !on ? "" : '<span class="ob-txt">🔒 <b>Orden ' + esc(F.orden.id) + " bloqueada.</b> Se cobra tal como vino. Para cambiar cualquier cosa (productos, cantidades, precios, descuento, delivery, cliente…) hace falta la <b>clave maestra</b>.</span>" +
+    '<button type="button" class="btn sm" onclick="ordDesbloquear(\'cambiar la orden\')">🔓 Desbloquear</button>';
 }
 
 // ══ 🗂️ EN ESPERA ══

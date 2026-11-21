@@ -39,7 +39,7 @@
 //  feriado: se elige con cuál se cobra hoy; brecha / Divisas se guardan en el sistema; las tasas llegan a todas las cajas
 //  cada 2 minutos. ✏️ Editar servicio (tanda2.js).
 // ══════════════════════════════════════════════════════════════
-const APP_VER = "5.2 · 19-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
+const APP_VER = "5.2a · 21-11-2026 · pruebas";   // SOLO-PRUEBAS: en producción va sin « · pruebas»
 const DB_NOMBRE = "cm_caja_web";
 const TOL = 0.011;   // un centavo, como el servidor (> 0,01)
 
@@ -495,7 +495,14 @@ function pintarBanners(){
   let h = "";
   { const rl = relojTxt(); if (rl) h += '<div class="banner av">' + rl + "</div>"; }   // 4.4
   if (S.permisoMal) h += '<div class="banner mal">⛔ ' + esc(S.permisoMal) + (S.reemplazado ? " Las ventas guardadas se suben solas; cierra el turno." : ' Puedes seguir vendiendo; las ventas quedan guardadas en este equipo. <a href="#" onclick="olvidarEquipo();return false;" style="color:inherit;font-weight:800;">Activar otra vez</a>') + "</div>";
-  if (S.turnoOtro) h += '<div class="banner mal">🧾 ' + esc(S.turnoOtro) + ' <a href="#" onclick="location.reload();return false;" style="color:inherit;font-weight:800;">Entrar otra vez</a></div>';   // 5.0i · Tanda 3B-1
+  if (S.turnoOtro) {
+    const esCerrado = !!(S.turnoOtroEsCerrado || (S.turnoOtro && S.turnoOtro.indexOf("ya se cerró") >= 0));
+    h += '<div class="banner mal">' + (esCerrado ? '🔒 ' : '🧾 ') + esc(S.turnoOtro) + ' ' +
+      (esCerrado
+        ? '<a href="#" onclick="limpiarTurnoCerrado(this);return false;" style="color:inherit;font-weight:800;text-decoration:underline;">Abrir turno nuevo</a>'
+        : '<a href="#" onclick="location.reload();return false;" style="color:inherit;font-weight:800;">Entrar otra vez</a>') +
+      '</div>';
+  }   // 5.0i · Tanda 3B-1
   if (S.datosMal) h += '<div class="banner mal">⛔ ' + esc(S.datosMal) + ' <a href="#" onclick="actualizarDatos(null,false);return false;" style="color:inherit;font-weight:800;">Reintentar</a></div>';
   if (S.sesionMal) h += '<div class="banner av">🔐 ' + esc(S.sesionMal) + ' <a href="#" onclick="pedirEntrarOtraVez();return false;" style="color:inherit;font-weight:800;">Entrar</a></div>';
   if (S.datos && typeof hayQuePreguntarTasa === "function" && hayQuePreguntarTasa()) h += '<div class="banner av">💱 Hoy el BCV no tiene tasa propia: elige con cuál se cobra hoy. ' +   // 4.9 (tasas.js)
@@ -1500,11 +1507,38 @@ async function crearCliente(btn){
     return Object.assign({ local: true }, l);
   }
 }
+// Limpia un turno que ya se cerró en el sistema (por ejemplo, el administrador desde otro equipo)
+async function limpiarTurnoCerrado(btn){
+  if (btn) btnOcupado(btn, "Abriendo…");
+  try {
+    S.turno = null;
+    S.turnoOtro = "";
+    S.turnoOtroEsCerrado = false;
+    await kvSet("turno", null);
+  } catch (e) {}
+  try { F.items = []; F.orden = null; P = null; } catch (e) {}
+  location.reload();
+}
 // ✅ Registrar Venta, como en Ventas: si la factura está en Genérico, primero "¿A quién le vendes?"
 // S2: solo se vende con la caja abierta por el cajero del turno (el Administrador que vino a cerrar el turno de otro no vende)
 function puedeVender(){
   if (S.turnoOtro) {   // 5.0i · Tanda 3B-1: el mismo cajero siguió el turno en otro equipo
     try { cerrarPago(); } catch (e) {}
+    const esCerrado = !!(S.turnoOtroEsCerrado || (S.turnoOtro && S.turnoOtro.indexOf("ya se cerró") >= 0));
+    if (esCerrado) {
+      modal({
+        icono: "🔒",
+        titulo: "Turno cerrado",
+        html: '<div class="m-txt">' + esc(S.turnoOtro) + "<br><br>Para seguir vendiendo, abre un turno nuevo.</div>",
+        botones: [
+          { txt: "Entendido", v: false, cls: "gray" },
+          { txt: "🔓 Abrir turno nuevo", v: true, cls: "green", spin: "Abriendo…" }
+        ]
+      }).then(r => {
+        if (r === true) limpiarTurnoCerrado();
+      });
+      return false;
+    }
     aviso({ icono: "🧾", titulo: "Tu turno siguió en otro equipo", html: esc(S.turnoOtro) + "<br><br>Si quieres volver a vender aquí, toca <b>Entrar otra vez</b> (arriba): este equipo se queda con la caja y el otro deja de vender." });
     return false;
   }
@@ -3333,7 +3367,11 @@ async function otrasAlDia(maxEdad){
     if (!r || !r.ok || !S.turno || S.turno.id !== t.id) return;
     const antes = otrasDe(t.id).length;
     await otrasGuardar(t.id, r);
-    if (r.turno && r.turno.estado === "CERRADO" && !S.turnoOtro) { S.turnoOtro = "Este turno ya se cerró en otro equipo. Para seguir vendiendo, abre un turno nuevo."; seguro(pintarBanners); }
+    if (r.turno && r.turno.estado === "CERRADO" && !S.turnoOtro) {
+      S.turnoOtro = "Este turno ya se cerró en otro equipo. Para seguir vendiendo, abre un turno nuevo.";
+      S.turnoOtroEsCerrado = true;
+      seguro(pintarBanners);
+    }
     if (S.vista === "ventas") seguro(pintarVentas);
     const n = otrasDe(t.id).length;
     if (n > antes && antes >= 0 && S.vista === "ventas") toast("📱 " + (n - antes === 1 ? "Llegó 1 venta" : "Llegaron " + (n - antes) + " ventas") + " de otro equipo");

@@ -214,6 +214,7 @@ async function turnoDelSistema(r){
         fondoBs: x.fondoBs, fondoUsd: x.fondoUsd, avisado: true, adoptado: !S.turno || !!S.turno.invitado });
       delete S.turno.invitado; delete S.turno.de; delete S.turno.cierraAdmin;   // 5.0m: es su turno (no vende como invitado)
       S.turnoOtro = "";
+      S.turnoOtroEsCerrado = false;
       await kvSet("turno", S.turno);
       toast("✅ Estás en tu turno de la Caja " + r.caja);
     } else if (a && a.msg) aviso({ icono: "🔒", titulo: "Ese turno ya se cerró", html: esc(a.msg) + " Para vender, abre un turno nuevo." });
